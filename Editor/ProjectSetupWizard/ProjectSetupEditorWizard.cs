@@ -11,9 +11,14 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
 {
     public partial class ProjectSetupEditorWizard : EditorWindow
     {
-        private const string SetNamespaceToggleKey = "ProjectSetupWizard_SetNamespace";
-        private const string DirectoryStructureKey = "ProjectSetupWizard_DirectoryStructure";
-        private const string ImportTMPEssentialsKey = "ProjectSetupWizard_ImportTMPEssentials";
+        // Centralized project-specific key prefix
+        internal static string KeyPrefix => $"{PlayerSettings.companyName}_{PlayerSettings.productName}_{PlayerSettings.productGUID}";
+
+        // EditorPrefs keys
+        internal static string SetNamespaceToggleKey => $"{KeyPrefix}_ProjectSetupWizard_SetNamespace";
+        internal static string DirectoryStructureKey => $"{KeyPrefix}_ProjectSetupWizard_DirectoryStructure";
+        internal static string ImportTMPEssentialsKey => $"{KeyPrefix}_ProjectSetupWizard_ImportTMPEssentials";
+        internal static string RootNamespaceKey => $"{KeyPrefix}_ProjectSetupWizard_RootNamespace";
 
         private const string TMPEssentialsMenuItemPath = "Window/TextMeshPro/Import TMP Essential Resources";
 
@@ -21,7 +26,6 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
         {
             { "DevCon", "https://github.com/NoSlimes/DevCon.git" },
             { "DLog", "https://github.com/NoSlimes/DLog.git"},
-
             { "Newtonsoft Json", "com.unity.nuget.newtonsoft-json" },
             { "Cinemachine", "com.unity.cinemachine"},
             { "ProBuilder", "com.unity.probuilder" },
@@ -48,18 +52,19 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
         private void OnEnable()
         {
             // Load package toggles
-            foreach (var kvp in packages)
+            foreach (KeyValuePair<string, string> kvp in packages)
             {
-                string key = $"ProjectSetupWizard_Import_{kvp.Key}";
+                string key = $"{KeyPrefix}_ProjectSetupWizard_Import_{kvp.Key}";
                 editorPrefsKeys[kvp.Key] = key;
                 packageToggles[kvp.Key] = EditorPrefs.GetBool(key, true);
             }
 
+            // Load wizard toggles
             setNamespaceToggle = EditorPrefs.GetBool(SetNamespaceToggleKey, true);
             directoryStructureToggle = EditorPrefs.GetBool(DirectoryStructureKey, true);
             importTMPEssentialsToggle = EditorPrefs.GetBool(ImportTMPEssentialsKey, true);
 
-            editorPrefsKeys["RootNamespace"] = "ProjectSetupWizard_RootNamespace";
+            editorPrefsKeys["RootNamespace"] = RootNamespaceKey;
         }
 
         private void CreateGUI()
@@ -78,8 +83,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
                 }
             };
 
-
-            Label title = new Label("Project Setup Wizard")
+            Label title = new("Project Setup Wizard")
             {
                 style =
                 {
@@ -92,7 +96,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
             root.Add(title);
 
             // Project Options
-            var optionsSection = CreateSection("Project Options");
+            VisualElement optionsSection = CreateSection("Project Options");
             optionsSection.Add(CreateOptionToggle("Create Default Directory Structure", directoryStructureToggle, val =>
             {
                 directoryStructureToggle = val;
@@ -106,13 +110,13 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
             root.Add(optionsSection);
 
             // Packages
-            var packagesSection = CreateSection("Packages");
-            foreach (var kvp in packages)
+            VisualElement packagesSection = CreateSection("Packages");
+            foreach (KeyValuePair<string, string> kvp in packages)
                 packagesSection.Add(CreatePackageToggle(kvp.Key));
             root.Add(packagesSection);
 
             // Namespace Section
-            var namespaceSection = CreateSection("Project Root Namespace");
+            VisualElement namespaceSection = CreateSection("Project Root Namespace");
 
             namespaceSection.Add(CreateOptionToggle("Set Root Namespace", setNamespaceToggle, val =>
             {
@@ -121,7 +125,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
                 namespaceField.SetEnabled(setNamespaceToggle);
             }));
 
-            string initialNamespace = EditorPrefs.GetString(editorPrefsKeys["RootNamespace"], "");
+            string initialNamespace = EditorPrefs.GetString(editorPrefsKeys["RootNamespace"], EditorSettings.projectGenerationRootNamespace);
             namespaceField = new TextField("Namespace")
             {
                 value = initialNamespace,
@@ -170,7 +174,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
                     unityFontStyleAndWeight = FontStyle.Italic,
                     color = Color.lightSlateGray,
                     alignSelf = Align.Stretch,
-                    whiteSpace = WhiteSpace.Normal,  // wrap text
+                    whiteSpace = WhiteSpace.Normal,
                     overflow = Overflow.Visible
                 }
             };
@@ -243,7 +247,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
                 await CreateDirectoriesAsync(rootNode, Application.dataPath);
             }
 
-            foreach (var kvp in packages)
+            foreach (KeyValuePair<string, string> kvp in packages)
             {
                 if (packageToggles.TryGetValue(kvp.Key, out bool shouldImport) && shouldImport)
                 {
@@ -267,7 +271,6 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
                 {
                     EditorApplication.ExecuteMenuItem(TMPEssentialsMenuItemPath);
 
-                    // Disable the toggle after import to prevent repeated imports
                     importTMPEssentialsToggle = false;
                     EditorPrefs.SetBool(ImportTMPEssentialsKey, false);
                     Repaint();
