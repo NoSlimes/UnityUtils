@@ -1,0 +1,19 @@
+{
+  "name": "com.noslimes.unityutils",
+  "version": "1.0.0",
+  "displayName": "UnityUtils",
+  "description": "A collection of utility scripts for Unity development.",
+  "unity": "6000.2",
+  "author": {
+    "name": "NoSlimes"
+  },
+  "keywords": [
+    "utilities",
+    "debug"
+  ],
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/NoSlimes/UnityUtils.git"
+  },
+  "license": "MIT"
+}
