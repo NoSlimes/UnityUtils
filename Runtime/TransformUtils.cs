@@ -71,6 +71,72 @@ namespace NoSlimes.Utils
                     Object.Destroy(child);
             }
         }
+        /// <summary>
+        /// Calculates the world-space bounds of a GameObject, including all child renderers and optionally colliders.
+        /// </summary>
+        /// <param name="transform">The Transform of the object to calculate bounds for.</param>
+        /// <param name="includeColliders">Whether to include Colliders in the bounds calculation.</param>
+        /// <returns>A Bounds struct representing the combined bounds of all renderers (and colliders if requested).</returns>
+        public static Bounds GetObjectBounds(this Transform transform, bool includeColliders = false)
+        {
+            var renderers = transform.GetComponentsInChildren<Renderer>();
+            var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : null;
 
+            bool hasBounds = false;
+            Bounds bounds = new Bounds(transform.position, Vector3.zero);
+
+            foreach (var renderer in renderers)
+            {
+                if (!hasBounds)
+                {
+                    bounds = renderer.bounds;
+                    hasBounds = true;
+                }
+                else
+                {
+                    bounds.Encapsulate(renderer.bounds);
+                }
+            }
+
+            if (includeColliders && colliders != null)
+            {
+                foreach (var collider in colliders)
+                {
+                    if (!hasBounds)
+                    {
+                        bounds = collider.bounds;
+                        hasBounds = true;
+                    }
+                    else
+                    {
+                        bounds.Encapsulate(collider.bounds);
+                    }
+                }
+            }
+
+            return bounds;
+        }
+
+        /// <summary>
+        /// Returns the world-space size of the object, including all child renderers and optionally colliders.
+        /// </summary>
+        /// <param name="transform">The Transform of the object.</param>
+        /// <param name="includeColliders">Whether to include colliders in the size calculation. Defaults to false.</param>
+        /// <returns>The size of the object as a <see cref="Vector3"/>.</returns>
+        public static Vector3 GetObjectSize(this Transform transform, bool includeColliders = false)
+        {
+            return GetObjectBounds(transform, includeColliders).size;
+        }
+
+        /// <summary>
+        /// Returns the world-space center of the object, including all child renderers and optionally colliders.
+        /// </summary>
+        /// <param name="transform">The Transform of the object.</param>
+        /// <param name="includeColliders">Whether to include colliders in the center calculation. Defaults to false.</param>
+        /// <returns>The center of the object as a <see cref="Vector3"/>.</returns>
+        public static Vector3 GetObjectCenter(this Transform transform, bool includeColliders = false)
+        {
+            return GetObjectBounds(transform, includeColliders).center;
+        }
     }
 }
