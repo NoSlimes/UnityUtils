@@ -49,7 +49,14 @@ namespace NoSlimes.Utils.Input
 
         public PlayerInput PlayerInput => playerInput;
         public bool IsGamepad => PlayerInput.currentControlScheme == "Gamepad";
-        public InputActionMap PreviousActionMap => playerInput.actions.FindActionMap(previousActionMapName);
+        public InputActionMap PreviousActionMap
+        {
+            get
+            {
+                var map = string.IsNullOrEmpty(previousActionMapName) ? null : playerInput.actions.FindActionMap(previousActionMapName);
+                return map;
+            }
+        }
 
         // Optional centralized events
         public event Action<InputAction.CallbackContext> OnMove;

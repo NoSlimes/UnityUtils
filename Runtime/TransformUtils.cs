@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 using Object = UnityEngine.Object;
 
 namespace NoSlimes.Utils
@@ -71,6 +72,7 @@ namespace NoSlimes.Utils
                     Object.Destroy(child);
             }
         }
+
         /// <summary>
         /// Calculates the world-space bounds of a GameObject, including all child renderers and optionally colliders.
         /// </summary>
@@ -80,21 +82,24 @@ namespace NoSlimes.Utils
         public static Bounds GetObjectBounds(this Transform transform, bool includeColliders = false)
         {
             var renderers = transform.GetComponentsInChildren<Renderer>();
-            var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : null;
+            var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
 
+            if (renderers.Length == 0 && renderers.Length == 0)
+                return new Bounds(Vector3.zero, Vector3.one);
+
+            Bounds combined = new Bounds(transform.position, Vector3.zero);
             bool hasBounds = false;
-            Bounds bounds = new Bounds(transform.position, Vector3.zero);
 
             foreach (var renderer in renderers)
             {
                 if (!hasBounds)
                 {
-                    bounds = renderer.bounds;
+                    combined = renderer.bounds;
                     hasBounds = true;
                 }
                 else
                 {
-                    bounds.Encapsulate(renderer.bounds);
+                    combined.Encapsulate(renderer.bounds);
                 }
             }
 
@@ -104,17 +109,17 @@ namespace NoSlimes.Utils
                 {
                     if (!hasBounds)
                     {
-                        bounds = collider.bounds;
+                        combined = collider.bounds;
                         hasBounds = true;
                     }
                     else
                     {
-                        bounds.Encapsulate(collider.bounds);
+                        combined.Encapsulate(collider.bounds);
                     }
                 }
             }
 
-            return bounds;
+            return combined;
         }
 
         /// <summary>
@@ -137,6 +142,78 @@ namespace NoSlimes.Utils
         public static Vector3 GetObjectCenter(this Transform transform, bool includeColliders = false)
         {
             return GetObjectBounds(transform, includeColliders).center;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="transform"></param>
+        /// <returns></returns>
+        public static Bounds GetLocalBounds(this Transform transform, bool includeColliders = false)
+        {
+            var renderers = transform.GetComponentsInChildren<Renderer>();
+            var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
+
+            if (renderers.Length == 0 && renderers.Length == 0)
+                return new Bounds(Vector3.zero, Vector3.one);
+
+            Bounds combined = new Bounds(transform.localPosition, Vector3.zero);
+            bool hasBounds = false;
+
+            foreach (var r in renderers)
+            {
+                if (!hasBounds)
+                {
+                    combined = new(transform.InverseTransformPoint(r.bounds.center),
+                                          transform.InverseTransformVector(r.bounds.size));
+                    hasBounds = true;
+                }
+                else
+                {
+                    Bounds b = new(transform.InverseTransformPoint(r.bounds.center),
+                                          transform.InverseTransformVector(r.bounds.size));
+                    combined.Encapsulate(b);
+                }
+            }
+
+
+            if (includeColliders && colliders != null)
+            {
+                foreach (var collider in colliders)
+                {
+                    if (!hasBounds)
+                    {
+                        combined = collider.bounds;
+                        hasBounds = true;
+                    }
+                    else
+                    {
+                        combined.Encapsulate(collider.bounds);
+                    }
+                }
+            }
+
+            return combined;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="transform"></param>
+        /// <returns></returns>
+        public static Vector3 GetLocalSize(this Transform transform)
+        {
+            return GetLocalBounds(transform).size;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="transform"></param>
+        /// <returns></returns>
+        public static Vector3 GetLocalCenter(this Transform transform)
+        {
+            return GetLocalBounds(transform).center;
         }
     }
 }
