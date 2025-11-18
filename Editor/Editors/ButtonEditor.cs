@@ -1,4 +1,4 @@
-using NoSlimes.Utils.Editor.Attributes;
+using NoSlimes.Utils.Common.Attributes;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
@@ -20,12 +20,12 @@ namespace NoSlimes.Utils.Editor.Editors
 
         private void DrawButtons(object targetObject)
         {
-            var methods = targetObject.GetType()
+            MethodInfo[] methods = targetObject.GetType()
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
-            foreach (var method in methods)
+            foreach (MethodInfo method in methods)
             {
-                var buttonAttr = method.GetCustomAttribute<ButtonMethodAttribute>();
+                ButtonMethodAttribute buttonAttr = method.GetCustomAttribute<ButtonMethodAttribute>();
                 if (buttonAttr != null)
                 {
                     string label = string.IsNullOrEmpty(buttonAttr.Label) ? method.Name : buttonAttr.Label;

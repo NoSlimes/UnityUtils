@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace NoSlimes.Utils.Editor.Attributes
+namespace NoSlimes.Utils.Common.Attributes
 {
     /// <summary>
     /// Shows a property in the Inspector only if the specified boolean field is true (or false if inverse).

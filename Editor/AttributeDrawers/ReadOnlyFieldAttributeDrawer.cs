@@ -1,7 +1,8 @@
+using NoSlimes.Utils.Common.Attributes;
 using UnityEditor;
 using UnityEngine;
 
-namespace NoSlimes.Utils.Editor.Attributes.Drawers
+namespace NoSlimes.Utils.Editor.Drawers
 {
     [CustomPropertyDrawer(typeof(ReadOnlyFieldAttribute))]
     internal class ReadOnlyFieldAttributeDrawer : PropertyDrawer
