@@ -39,6 +39,8 @@ namespace NoSlimes.Utils.Input
             }
         }
 
+        public InputAction this[string name] => GetAction(name);
+
         private PlayerInput playerInput;
         private string previousActionMapName;
 
@@ -271,8 +273,29 @@ namespace NoSlimes.Utils.Input
             }
         }
 
+        public InputActionMap GetActionMap(string mapName)
+        {
+            var actionMap = playerInput.actions.FindActionMap(mapName);
+            if (actionMap == null)
+            {
+                Debug.LogWarning($"Input action map '{mapName}' not found in PlayerInput.", this);
+                return null;
+            }
 
+            return playerInput.actions.FindActionMap(mapName);
+        }
 
+        public void EnableActionMap(string mapName, bool enable)
+        {
+            var actionMap = GetActionMap(mapName);
+            if (actionMap != null)
+            {
+                if (enable)
+                    actionMap.Enable();
+                else
+                    actionMap.Disable();
+            }
+        }
 
         #region Convenience Properties
         public Vector2 Move => GetAction(ActionNames.Move)?.ReadValue<Vector2>() ?? Vector2.zero;
