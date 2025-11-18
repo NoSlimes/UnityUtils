@@ -154,47 +154,57 @@ namespace NoSlimes.Utils
             var renderers = transform.GetComponentsInChildren<Renderer>();
             var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
 
-            if (renderers.Length == 0 && renderers.Length == 0)
+            if (renderers.Length == 0 && colliders.Length == 0)
                 return new Bounds(Vector3.zero, Vector3.one);
 
-            Bounds combined = new Bounds(transform.localPosition, Vector3.zero);
+            Bounds combined = new Bounds();
             bool hasBounds = false;
 
+            // Include renderers
             foreach (var r in renderers)
             {
+                // Convert renderer's localBounds to this transform's local space
+                Bounds b = new Bounds(
+                    transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.center)),
+                    r.localBounds.size
+                );
+
                 if (!hasBounds)
                 {
-                    combined = new(transform.InverseTransformPoint(r.bounds.center),
-                                          transform.InverseTransformVector(r.bounds.size));
+                    combined = b;
                     hasBounds = true;
                 }
                 else
                 {
-                    Bounds b = new(transform.InverseTransformPoint(r.bounds.center),
-                                          transform.InverseTransformVector(r.bounds.size));
                     combined.Encapsulate(b);
                 }
             }
 
-
-            if (includeColliders && colliders != null)
+            // Include colliders if requested
+            if (includeColliders)
             {
-                foreach (var collider in colliders)
+                foreach (var c in colliders)
                 {
+                    Bounds b = new Bounds(
+                        transform.InverseTransformPoint(c.bounds.center),
+                        transform.InverseTransformVector(c.bounds.size)
+                    );
+
                     if (!hasBounds)
                     {
-                        combined = collider.bounds;
+                        combined = b;
                         hasBounds = true;
                     }
                     else
                     {
-                        combined.Encapsulate(collider.bounds);
+                        combined.Encapsulate(b);
                     }
                 }
             }
 
             return combined;
         }
+
 
         /// <summary>
         /// 

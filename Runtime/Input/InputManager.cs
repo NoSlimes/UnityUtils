@@ -195,7 +195,10 @@ namespace NoSlimes.Utils.Input
         public void UnregisterActionCallback(string actionName, Action<InputAction.CallbackContext> callback, InputActionPhase phase = InputActionPhase.Performed)
         {
             if (string.IsNullOrEmpty(actionName) || callback == null)
+            {
+                Debug.LogWarning("Invalid action name or callback provided.", this);
                 return;
+            }
 
             switch (phase)
             {
@@ -225,6 +228,34 @@ namespace NoSlimes.Utils.Input
                         else canceledCallbacks[actionName] = canceled;
                     }
                     break;
+            }
+        }
+
+        public void RegisterActionCallback(string[] actionNames, Action<InputAction.CallbackContext> callback, InputActionPhase phase = InputActionPhase.Performed)
+        {
+            if (actionNames == null || callback == null)
+            {
+                Debug.LogWarning("Invalid action names or callback provided.", this);
+                return;
+            }
+
+            foreach (string actionName in actionNames)
+            {
+                RegisterActionCallback(actionName, callback, phase);
+            }
+        }
+
+        public void UnregisterActionCallback(string[] actionNames, Action<InputAction.CallbackContext> callback, InputActionPhase phase = InputActionPhase.Performed)
+        {
+            if (actionNames == null || callback == null)
+            {
+                Debug.LogWarning("Invalid action names or callback provided.", this);
+                return;
+            }
+
+            foreach (string actionName in actionNames)
+            {
+                UnregisterActionCallback(actionName, callback, phase);
             }
         }
 
