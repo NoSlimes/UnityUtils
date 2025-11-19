@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace NoSlimes.Utils.Input.Compatibility
 {
-    public class InputManagerConsoleHandler : MonoBehaviour
+    public class InputManagerDevConHandler : MonoBehaviour
     {
         [SerializeField] private string uiActionMapName = "UI";
 

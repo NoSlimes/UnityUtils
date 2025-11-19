@@ -8,14 +8,12 @@ namespace NoSlimes.Utils.Input
     public struct ActionNames
     {
         public const string Move = "Move";
+        public const string Look = "Look";
         public const string Jump = "Jump";
         public const string Crouch = "Crouch";
         public const string Sprint = "Sprint";
-        public const string Look = "Look";
         public const string Attack = "Attack";
         public const string Interact = "Interact";
-        public const string HotbarScroll = "HotbarScroll";
-        public const string HotbarSelect = "HotbarSelect";
     }
 
     [DefaultExecutionOrder(-10)]
@@ -285,7 +283,7 @@ namespace NoSlimes.Utils.Input
             return playerInput.actions.FindActionMap(mapName);
         }
 
-        public void EnableActionMap(string mapName, bool enable)
+        public InputActionMap EnableActionMap(string mapName, bool enable)
         {
             var actionMap = GetActionMap(mapName);
             if (actionMap != null)
@@ -295,25 +293,8 @@ namespace NoSlimes.Utils.Input
                 else
                     actionMap.Disable();
             }
+
+            return actionMap;
         }
-
-        #region Convenience Properties
-        public Vector2 Move => GetAction(ActionNames.Move)?.ReadValue<Vector2>() ?? Vector2.zero;
-
-        public Vector2 Look
-        {
-            get
-            {
-                Vector2 lookInput = GetAction(ActionNames.Look)?.ReadValue<Vector2>() ?? Vector2.zero;
-                return new Vector2(lookInput.x, -lookInput.y); // invert Y axis
-            }
-        }
-
-        public bool JumpPressed => GetAction(ActionNames.Jump)?.triggered ?? false;
-        public bool IsCrouching => GetAction(ActionNames.Crouch)?.triggered ?? false;
-        public bool IsSprinting => GetAction(ActionNames.Sprint)?.IsPressed() ?? false;
-        public bool IsAttacking => GetAction(ActionNames.Attack)?.triggered ?? false;
-        public bool IsInteracting => GetAction(ActionNames.Interact)?.IsPressed() ?? false;
-        #endregion
     }
 }
