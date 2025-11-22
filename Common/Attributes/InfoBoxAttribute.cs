@@ -1,13 +1,19 @@
-﻿using UnityEditor;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace NoSlimes.Utils.Common.Attributes
 {
     public class InfoBoxAttribute : PropertyAttribute
     {
+        public enum MessageSeverity
+        {
+            Info,
+            Warning,
+            Error
+        }
+
         public string Message { get; }
-        public MessageType MessageType { get; }
-        public InfoBoxAttribute(string message, MessageType type = MessageType.Info)
+        public MessageSeverity MessageType { get; }
+        public InfoBoxAttribute(string message, MessageSeverity type = MessageSeverity.Info)
         {
             Message = message;
             MessageType = type;
