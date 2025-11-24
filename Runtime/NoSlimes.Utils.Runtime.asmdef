@@ -5,7 +5,7 @@
         "GUID:e5ec0e1e100ef7941bfadfabe90e195f",
         "GUID:6055be8ebefd69e48b49212b09b47b2f",
         "GUID:75469ad4d38634e559750d17036d5f7c",
-        "GUID:3857b2fc56092ac46a9d30f441772494"
+        "GUID:ee3554ba3287cc144976b28fd4762b42"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
@@ -14,6 +14,12 @@
     "precompiledReferences": [],
     "autoReferenced": true,
     "defineConstraints": [],
-    "versionDefines": [],
+    "versionDefines": [
+        {
+            "name": "Select...",
+            "expression": "",
+            "define": "UTILS_DEVCON_INSTALLED"
+        }
+    ],
     "noEngineReferences": false
 }
