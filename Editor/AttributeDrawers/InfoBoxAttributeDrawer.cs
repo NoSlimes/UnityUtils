@@ -12,7 +12,16 @@ namespace NoSlimes.Utils.Editor.Drawers
             InfoBoxAttribute attr = (InfoBoxAttribute)attribute;
             Rect infoBoxRect = new Rect(position.x, position.y, position.width, EditorGUIUtility.singleLineHeight * 2);
 
-            EditorGUI.HelpBox(infoBoxRect, attr.Message, attr.MessageType);
+            var messageType = attr.MessageType switch
+            {
+                InfoBoxAttribute.MessageSeverity.Info => MessageType.Info,
+                InfoBoxAttribute.MessageSeverity.Warning => MessageType.Warning,
+                InfoBoxAttribute.MessageSeverity.Error => MessageType.Error,
+                _ => MessageType.Info
+            };
+
+
+            EditorGUI.HelpBox(infoBoxRect, attr.Message, messageType);
             Rect propertyRect = new Rect(position.x, position.y + infoBoxRect.height + 4, position.width, EditorGUI.GetPropertyHeight(property, label, true));
             EditorGUI.PropertyField(propertyRect, property, label, true);
         }

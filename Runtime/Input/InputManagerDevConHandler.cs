@@ -1,4 +1,4 @@
-#if DEVCON
+#if UTILS_DEVCON_INSTALLED
 using NoSlimes.Util.DevCon;
 using UnityEngine;
 
