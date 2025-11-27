@@ -13,6 +13,10 @@ namespace NoSlimes.Utils.Common
             );
         }
 
+        public static float NextFloat(this System.Random rng)
+            => (float)rng.NextDouble();
 
+        public static float NextFloat(this System.Random rng, float min, float max)
+            => (float)(rng.NextDouble() * (max - min) + min);
     }
 }
