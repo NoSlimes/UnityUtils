@@ -5,27 +5,17 @@ using UnityEngine;
 
 namespace NoSlimes.Utils.Editor.Editors
 {
-    /// <summary>
-    /// Generic editor that draws buttons for methods with [Button] attributes.
-    /// </summary>
-    [CustomEditor(typeof(MonoBehaviour), true)]
-    [CanEditMultipleObjects]
-    public class ButtonEditor : UnityEditor.Editor
+    public static class ButtonDrawer
     {
-        public override void OnInspectorGUI()
+        public static void DrawButtons(object targetObject)
         {
-            base.OnInspectorGUI();
-            DrawButtons(target);
-        }
-
-        private void DrawButtons(object targetObject)
-        {
+            // Get all methods (Public, Private, Instance)
             MethodInfo[] methods = targetObject.GetType()
                 .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
             foreach (MethodInfo method in methods)
             {
-                ButtonMethodAttribute buttonAttr = method.GetCustomAttribute<ButtonMethodAttribute>();
+                var buttonAttr = method.GetCustomAttribute<ButtonMethodAttribute>();
                 if (buttonAttr != null)
                 {
                     string label = string.IsNullOrEmpty(buttonAttr.Label) ? method.Name : buttonAttr.Label;
@@ -36,6 +26,28 @@ namespace NoSlimes.Utils.Editor.Editors
                     }
                 }
             }
+        }
+    }
+
+    [CustomEditor(typeof(MonoBehaviour), true)]
+    [CanEditMultipleObjects]
+    public class MonoBehaviourButtonEditor : UnityEditor.Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
+            ButtonDrawer.DrawButtons(target);
+        }
+    }
+
+    [CustomEditor(typeof(ScriptableObject), true)]
+    [CanEditMultipleObjects]
+    public class ScriptableObjectButtonEditor : UnityEditor.Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            base.OnInspectorGUI();
+            ButtonDrawer.DrawButtons(target);
         }
     }
 }
