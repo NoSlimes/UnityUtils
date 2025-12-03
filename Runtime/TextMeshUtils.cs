@@ -78,9 +78,11 @@ public static class TextMeshUtils
 
     public static void LookAtCamera(this TextMeshPro tmp, Camera camera = null)
     {
-        if(camera == null)
+        if (camera == null)
             camera = Camera.main;
 
-        tmp.transform.rotation = Quaternion.LookRotation(tmp.transform.position - camera.transform.position);
+        Vector3 toCamera = tmp.transform.position - camera.transform.position;
+        tmp.transform.rotation = Quaternion.LookRotation(toCamera, camera.transform.up);
     }
+
 }
