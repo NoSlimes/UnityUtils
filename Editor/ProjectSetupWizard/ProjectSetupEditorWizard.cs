@@ -7,7 +7,7 @@ using UnityEditor.PackageManager.Requests;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace NoSlimes.Utils.Editor.ProjectSetupWizard
+namespace NoSlimes.Utils.Editor.EditorWindows.ProjectSetupWizard
 {
     public partial class ProjectSetupEditorWizard : EditorWindow
     {
@@ -41,7 +41,7 @@ namespace NoSlimes.Utils.Editor.ProjectSetupWizard
         private bool directoryStructureToggle = true;
         private bool importTMPEssentialsToggle = true;
 
-        [MenuItem("Tools/Project Setup Wizard")]
+        [MenuItem("Tools/UnityUtils/Project Setup Wizard")]
         public static void ShowWindow()
         {
             ProjectSetupEditorWizard window = GetWindow<ProjectSetupEditorWizard>("Project Setup Wizard");

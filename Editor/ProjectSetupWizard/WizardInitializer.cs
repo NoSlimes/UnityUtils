@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using UnityEditor;
 
-namespace NoSlimes.Utils.Editor.ProjectSetupWizard
+namespace NoSlimes.Utils.Editor.EditorWindows.ProjectSetupWizard
 {
     [InitializeOnLoad]
     public class WizardInitializer
