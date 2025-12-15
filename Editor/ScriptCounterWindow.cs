@@ -21,6 +21,8 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
         private List<ScriptInfo> scriptList = new();
 
         private Button analyzeButton;
+        private Button selectFolderButton;
+        private Label folderLabel;
         private ProgressBar progressBar;
         private VisualElement dashboardContainer;
         private ListView scriptListView;
@@ -33,6 +35,8 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
         private float currentProgress = 0f;
         private string currentProcessingFile = "";
 
+        private string selectedFolder = "Assets";
+
         [MenuItem("Tools/UnityUtils/Script Analytics")]
         private static void OpenWindow()
         {
@@ -44,6 +48,8 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
 
         public void CreateGUI()
         {
+            TryFindScriptsFolder();
+
             VisualElement root = rootVisualElement;
             root.style.paddingTop = 10;
             root.style.paddingBottom = 10;
@@ -56,6 +62,22 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             title.style.alignSelf = Align.Center;
             title.style.marginBottom = 10;
             root.Add(title);
+
+            var folderRow = new VisualElement();
+            folderRow.style.flexDirection = FlexDirection.Row;
+            folderRow.style.marginBottom = 5;
+
+            selectFolderButton = new Button(SelectFolder) { text = "Select Folder" };
+            selectFolderButton.style.height = 25;
+
+            folderLabel = new Label(selectedFolder);
+            folderLabel.style.flexGrow = 1;
+            folderLabel.style.unityTextAlign = TextAnchor.MiddleLeft;
+            folderLabel.style.marginLeft = 6;
+
+            folderRow.Add(selectFolderButton);
+            folderRow.Add(folderLabel);
+            root.Add(folderRow);
 
             analyzeButton = new Button(CountScriptsAsync) { text = "Analyze Scripts" };
             analyzeButton.style.height = 30;
@@ -128,9 +150,7 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             scriptListView.makeItem = MakeListItem;
             scriptListView.bindItem = BindListItem;
             scriptListView.selectionType = SelectionType.Single;
-
             scriptListView.selectionChanged += OnSelectionChanged;
-
             root.Add(scriptListView);
 
             root.schedule.Execute(() =>
@@ -143,6 +163,24 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             }).Every(50);
         }
 
+        private void TryFindScriptsFolder()
+        {
+            var dirs = Directory.GetDirectories(Application.dataPath, "Scripts", SearchOption.AllDirectories);
+            if (dirs.Length > 0)
+            {
+                selectedFolder = "Assets" + dirs[0].Replace(Application.dataPath, "").Replace("\\", "/");
+            }
+        }
+
+        private void SelectFolder()
+        {
+            string path = EditorUtility.OpenFolderPanel("Select Script Folder", Application.dataPath, "");
+            if (string.IsNullOrEmpty(path)) return;
+            if (!path.StartsWith(Application.dataPath)) return;
+            selectedFolder = "Assets" + path.Replace(Application.dataPath, "").Replace("\\", "/");
+            folderLabel.text = selectedFolder;
+        }
+
         private VisualElement MakeListItem()
         {
             var container = new VisualElement();
@@ -151,16 +189,13 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             container.style.paddingLeft = 5;
 
             var lblName = new Label();
-            lblName.name = "NameLabel";
             lblName.style.width = 250;
             lblName.style.overflow = Overflow.Hidden;
 
             var lblLines = new Label();
-            lblName.name = "LinesLabel";
             lblLines.style.width = 80;
 
             var lblSize = new Label();
-            lblName.name = "SizeLabel";
             lblSize.style.width = 80;
 
             container.Add(lblName);
@@ -175,44 +210,28 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             if (index >= scriptList.Count) return;
 
             ScriptInfo info = scriptList[index];
-            Label lblName = element.Q<Label>(null, "NameLabel");
-            Label lblLines = element.Q<Label>(null, "LinesLabel");
-            Label lblSize = element.Q<Label>(null, "SizeLabel");
 
-            lblName = element.ElementAt(0) as Label;
-            lblLines = element.ElementAt(1) as Label;
-            lblSize = element.ElementAt(2) as Label;
+            var lblName = element.ElementAt(0) as Label;
+            var lblLines = element.ElementAt(1) as Label;
+            var lblSize = element.ElementAt(2) as Label;
 
             lblName.text = info.Name;
             lblLines.text = info.LineCount.ToString("N0");
             lblSize.text = FormatBytes(info.SizeBytes);
 
-            if (info.LineCount > 1000)
-            {
-                lblName.style.color = new Color(1f, 0.4f, 0.4f);
-                lblLines.style.color = new Color(1f, 0.4f, 0.4f);
-            }
-            else if (info.LineCount > 500)
-            {
-                lblName.style.color = new Color(1f, 0.7f, 0.2f);
-                lblLines.style.color = new Color(1f, 0.7f, 0.2f);
-            }
-            else
-            {
-                lblName.style.color = Color.white;
-                lblLines.style.color = Color.white;
-            }
+            Color c = info.LineCount > 1000 ? new Color(1f, 0.4f, 0.4f) :
+                      info.LineCount > 500 ? new Color(1f, 0.7f, 0.2f) :
+                      Color.white;
 
+            lblName.style.color = c;
+            lblLines.style.color = c;
             lblSize.style.color = Color.gray;
         }
 
         private void OnSelectionChanged(IEnumerable<object> selectedItems)
         {
-            var item = selectedItems.FirstOrDefault();
-            if (item is ScriptInfo info)
-            {
+            if (selectedItems.FirstOrDefault() is ScriptInfo info)
                 PingScript(info.Path);
-            }
         }
 
         private VisualElement CreateRow()
@@ -263,14 +282,11 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             scriptListView.itemsSource = scriptList;
             scriptListView.Rebuild();
 
-            string[] scriptGUIDs = AssetDatabase.FindAssets("t:MonoScript", new[] { "Assets" });
-            List<string> filePaths = new();
-
-            foreach (var guid in scriptGUIDs)
-            {
-                string path = AssetDatabase.GUIDToAssetPath(guid);
-                if (path.EndsWith(".cs")) filePaths.Add(path);
-            }
+            string[] scriptGUIDs = AssetDatabase.FindAssets("t:MonoScript", new[] { selectedFolder });
+            List<string> filePaths = scriptGUIDs
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(p => p.EndsWith(".cs"))
+                .ToList();
 
             List<ScriptInfo> resultData = await Task.Run(() =>
             {
@@ -283,24 +299,18 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
                     currentProgress = (float)i / count;
                     currentProcessingFile = Path.GetFileName(path);
 
-                    if (File.Exists(path))
+                    if (!File.Exists(path)) continue;
+
+                    int lines = File.ReadLines(path).Count();
+                    long size = new FileInfo(path).Length;
+
+                    results.Add(new ScriptInfo
                     {
-                        int lines = 0;
-                        long size = new FileInfo(path).Length;
-
-                        using (StreamReader sr = new(path))
-                        {
-                            while (sr.ReadLine() != null) lines++;
-                        }
-
-                        results.Add(new ScriptInfo
-                        {
-                            Name = Path.GetFileName(path),
-                            LineCount = lines,
-                            SizeBytes = size,
-                            Path = path
-                        });
-                    }
+                        Name = Path.GetFileName(path),
+                        LineCount = lines,
+                        SizeBytes = size,
+                        Path = path
+                    });
                 }
                 return results;
             });
@@ -315,14 +325,13 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             lblTotalLines.text = totalLines.ToString("N0");
             lblTotalSize.text = FormatBytes(totalSize);
 
-            float avgL = totalScripts > 0 ? (float)totalLines / totalScripts : 0;
-            lblAvgLines.text = avgL.ToString("F1");
+            lblAvgLines.text = (totalScripts > 0 ? (float)totalLines / totalScripts : 0).ToString("F1");
             lblAvgSize.text = FormatBytes(totalSize / (totalScripts > 0 ? totalScripts : 1));
 
             if (scriptList.Count > 0)
             {
-                ScriptInfo biggest = scriptList[0];
-                ScriptInfo smallest = scriptList[^1];
+                var biggest = scriptList[0];
+                var smallest = scriptList[^1];
 
                 btnBiggest.text = $"↑ Most lines: {biggest.Name} ({biggest.LineCount:N0})";
                 btnBiggest.userData = biggest.Path;
@@ -343,7 +352,7 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
         private void PingScript(string path)
         {
             if (string.IsNullOrEmpty(path)) return;
-            Object obj = AssetDatabase.LoadAssetAtPath<Object>(path);
+            var obj = AssetDatabase.LoadAssetAtPath<Object>(path);
             if (obj != null) EditorGUIUtility.PingObject(obj);
         }
 
