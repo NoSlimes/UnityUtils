@@ -1,6 +1,6 @@
 {
   "name": "com.noslimes.unityutils",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "displayName": "UnityUtils",
   "description": "A collection of utility scripts for Unity development.",
   "unity": "6000.2",
