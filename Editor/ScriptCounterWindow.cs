@@ -16,7 +16,17 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             public int LineCount;
             public long SizeBytes;
             public string Path;
+            public string ScriptType;
+            public int CommentLineCount;
+            // ADDED: Track non-empty lines for accurate ratio
+            public int NonEmptyLineCount;
+            public bool HasUpdateMethod;
         }
+
+        // ADDED: CommentRatio to sort options
+        private enum SortOption { Name, Type, Lines, Size, CommentRatio }
+        private SortOption currentSort = SortOption.Lines;
+        private bool sortAscending = false;
 
         private List<ScriptInfo> scriptList = new();
 
@@ -28,8 +38,14 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
         private ListView scriptListView;
 
         private Label lblTotalScripts, lblTotalLines, lblTotalSize;
-        private Label lblAvgLines, lblAvgSize;
+        private Label lblAvgLines, lblCommentPct, lblMonoPct, lblUpdateCount;
+
+        private VisualElement typeStatsContainer;
+
         private Button btnBiggest, btnSmallest;
+
+        // ADDED: headerComments
+        private Label headerName, headerType, headerLines, headerSize, headerComments;
 
         private bool isProcessing = false;
         private float currentProgress = 0f;
@@ -42,7 +58,8 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
         {
             ScriptCounterWindow window = GetWindow<ScriptCounterWindow>();
             window.titleContent = new GUIContent("Script Analytics");
-            window.minSize = new Vector2(450, 600);
+            // CHANGED: Widen window slightly to accommodate the new margin
+            window.minSize = new Vector2(620, 600);
             window.Show();
         }
 
@@ -109,8 +126,16 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
 
             VisualElement row2 = CreateRow();
             lblAvgLines = CreateStatBox(row2, "Avg Lines");
-            lblAvgSize = CreateStatBox(row2, "Avg Size");
+            lblCommentPct = CreateStatBox(row2, "Comments %");
+            lblMonoPct = CreateStatBox(row2, "MonoBehaviour %");
+            lblUpdateCount = CreateStatBox(row2, "Scripts w/ Update");
             dashboardContainer.Add(row2);
+
+            typeStatsContainer = new VisualElement();
+            typeStatsContainer.style.marginTop = 10;
+            typeStatsContainer.style.flexDirection = FlexDirection.Row;
+            typeStatsContainer.style.flexWrap = Wrap.Wrap;
+            dashboardContainer.Add(typeStatsContainer);
 
             VisualElement row3 = CreateRow();
             row3.style.marginTop = 10;
@@ -138,9 +163,20 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             listHeader.style.height = 20;
             listHeader.style.alignItems = Align.Center;
 
-            listHeader.Add(CreateHeaderLabel("Name", 250));
-            listHeader.Add(CreateHeaderLabel("Lines", 80));
-            listHeader.Add(CreateHeaderLabel("Size", 80));
+            headerName = CreateHeaderLabel("Name", 210, SortOption.Name);
+            headerType = CreateHeaderLabel("Type", 160, SortOption.Type);
+            headerLines = CreateHeaderLabel("Lines", 55, SortOption.Lines);
+            headerSize = CreateHeaderLabel("Size", 55, SortOption.Size);
+            headerComments = CreateHeaderLabel("Comm. %", 70, SortOption.CommentRatio);
+
+            // CHANGED: Added left margin for spacing
+            headerComments.style.marginLeft = 10;
+
+            listHeader.Add(headerName);
+            listHeader.Add(headerType);
+            listHeader.Add(headerLines);
+            listHeader.Add(headerSize);
+            listHeader.Add(headerComments);
             root.Add(listHeader);
 
             scriptListView = new ListView();
@@ -152,6 +188,8 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             scriptListView.selectionType = SelectionType.Single;
             scriptListView.selectionChanged += OnSelectionChanged;
             root.Add(scriptListView);
+
+            UpdateHeaderVisuals();
 
             root.schedule.Execute(() =>
             {
@@ -189,18 +227,30 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             container.style.paddingLeft = 5;
 
             var lblName = new Label();
-            lblName.style.width = 250;
+            lblName.style.width = 210;
             lblName.style.overflow = Overflow.Hidden;
 
+            var lblType = new Label();
+            lblType.style.width = 160;
+            lblType.style.overflow = Overflow.Hidden;
+            lblType.style.unityFontStyleAndWeight = FontStyle.Bold;
+
             var lblLines = new Label();
-            lblLines.style.width = 80;
+            lblLines.style.width = 55;
 
             var lblSize = new Label();
-            lblSize.style.width = 80;
+            lblSize.style.width = 55;
+
+            var lblComm = new Label();
+            lblComm.style.width = 70;
+            // CHANGED: Added left margin for spacing
+            lblComm.style.marginLeft = 10;
 
             container.Add(lblName);
+            container.Add(lblType);
             container.Add(lblLines);
             container.Add(lblSize);
+            container.Add(lblComm);
 
             return container;
         }
@@ -212,12 +262,53 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             ScriptInfo info = scriptList[index];
 
             var lblName = element.ElementAt(0) as Label;
-            var lblLines = element.ElementAt(1) as Label;
-            var lblSize = element.ElementAt(2) as Label;
+            var lblType = element.ElementAt(1) as Label;
+            var lblLines = element.ElementAt(2) as Label;
+            var lblSize = element.ElementAt(3) as Label;
+            var lblComm = element.ElementAt(4) as Label;
 
             lblName.text = info.Name;
+            lblType.text = info.ScriptType;
             lblLines.text = info.LineCount.ToString("N0");
             lblSize.text = FormatBytes(info.SizeBytes);
+
+            // CHANGED: Use NonEmptyLineCount for the denominator to ignore blank lines
+            float ratio = info.NonEmptyLineCount > 0 ? (float)info.CommentLineCount / info.NonEmptyLineCount : 0f;
+            lblComm.text = $"{ratio:P0}";
+
+            Color typeColor = Color.gray;
+            string t = info.ScriptType;
+
+            if (t.Contains("MonoBehaviour"))
+            {
+                typeColor = new Color(0.4f, 1f, 0.4f); // Green
+            }
+            else if (t.Contains("ScriptableObject"))
+            {
+                typeColor = new Color(0.4f, 0.8f, 1f); // Cyan
+            }
+            else if (t.Contains("Interface"))
+            {
+                typeColor = new Color(1f, 0.9f, 0.4f); // Yellowish
+            }
+            else if (t.Contains("Enum"))
+            {
+                typeColor = new Color(1f, 0.6f, 0.2f); // Orange
+            }
+            else if (t.Contains("Editor") || t.Contains("EditorWindow"))
+            {
+                typeColor = new Color(1f, 0.5f, 0.6f); // Red/Pink
+            }
+            else if (t.Contains("Struct"))
+            {
+                typeColor = new Color(0.8f, 0.5f, 1f); // Purple
+            }
+            else if (t.Contains("Class"))
+            {
+                typeColor = new Color(0.7f, 0.7f, 1f); // Blueish
+            }
+
+            lblType.style.color = typeColor;
 
             Color c = info.LineCount > 1000 ? new Color(1f, 0.4f, 0.4f) :
                       info.LineCount > 500 ? new Color(1f, 0.7f, 0.2f) :
@@ -226,6 +317,7 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             lblName.style.color = c;
             lblLines.style.color = c;
             lblSize.style.color = Color.gray;
+            lblComm.style.color = Color.gray;
         }
 
         private void OnSelectionChanged(IEnumerable<object> selectedItems)
@@ -263,12 +355,84 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
             return v;
         }
 
-        private Label CreateHeaderLabel(string text, float width)
+        private Label CreateHeaderLabel(string text, float width, SortOption option)
         {
             var l = new Label(text);
             l.style.width = width;
             l.style.unityFontStyleAndWeight = FontStyle.Bold;
+            l.RegisterCallback<MouseDownEvent>(evt => OnHeaderClicked(option));
             return l;
+        }
+
+        private void OnHeaderClicked(SortOption option)
+        {
+            if (currentSort == option)
+            {
+                sortAscending = !sortAscending;
+            }
+            else
+            {
+                currentSort = option;
+                // Default defaults: Text = Ascending, Numbers = Descending
+                if (option == SortOption.Name || option == SortOption.Type) sortAscending = true;
+                else sortAscending = false;
+            }
+
+            ApplySort();
+            UpdateHeaderVisuals();
+        }
+
+        private void ApplySort()
+        {
+            if (scriptList == null || scriptList.Count == 0) return;
+
+            IEnumerable<ScriptInfo> query = scriptList;
+
+            switch (currentSort)
+            {
+                case SortOption.Name:
+                    query = sortAscending ? query.OrderBy(x => x.Name) : query.OrderByDescending(x => x.Name);
+                    break;
+                case SortOption.Type:
+                    query = sortAscending ? query.OrderBy(x => x.ScriptType) : query.OrderByDescending(x => x.ScriptType);
+                    break;
+                case SortOption.Lines:
+                    query = sortAscending ? query.OrderBy(x => x.LineCount) : query.OrderByDescending(x => x.LineCount);
+                    break;
+                case SortOption.Size:
+                    query = sortAscending ? query.OrderBy(x => x.SizeBytes) : query.OrderByDescending(x => x.SizeBytes);
+                    break;
+                case SortOption.CommentRatio:
+                    // CHANGED: Sort based on NonEmptyLineCount denominator
+                    query = sortAscending
+                        ? query.OrderBy(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0)
+                        : query.OrderByDescending(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0);
+                    break;
+            }
+
+            scriptList = query.ToList();
+            scriptListView.itemsSource = scriptList;
+            scriptListView.Rebuild();
+        }
+
+        private void UpdateHeaderVisuals()
+        {
+            if (headerName != null) headerName.text = "Name";
+            if (headerType != null) headerType.text = "Type";
+            if (headerLines != null) headerLines.text = "Lines";
+            if (headerSize != null) headerSize.text = "Size";
+            if (headerComments != null) headerComments.text = "Comm. %";
+
+            string arrow = sortAscending ? " ↑" : " ↓";
+
+            switch (currentSort)
+            {
+                case SortOption.Name: headerName.text += arrow; break;
+                case SortOption.Type: headerType.text += arrow; break;
+                case SortOption.Lines: headerLines.text += arrow; break;
+                case SortOption.Size: headerSize.text += arrow; break;
+                case SortOption.CommentRatio: headerComments.text += arrow; break;
+            }
         }
 
         private async void CountScriptsAsync()
@@ -288,6 +452,49 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
                 .Where(p => p.EndsWith(".cs"))
                 .ToList();
 
+            Dictionary<string, string> fileTypeMap = new Dictionary<string, string>();
+
+            for (int i = 0; i < filePaths.Count; i++)
+            {
+                string path = filePaths[i];
+                string typeName = "Unknown";
+
+                var monoScript = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
+                if (monoScript != null)
+                {
+                    System.Type cls = monoScript.GetClass();
+                    if (cls != null)
+                    {
+                        if (cls.IsEnum) typeName = "Enum";
+                        else if (cls.IsInterface) typeName = "Interface";
+                        else if (cls.IsValueType && !cls.IsPrimitive) typeName = "Struct";
+                        else
+                        {
+                            string baseType = "C# Class";
+
+                            if (typeof(MonoBehaviour).IsAssignableFrom(cls)) baseType = "MonoBehaviour";
+                            else if (typeof(ScriptableObject).IsAssignableFrom(cls)) baseType = "ScriptableObject";
+                            else if (typeof(UnityEditor.Editor).IsAssignableFrom(cls)) baseType = "Editor";
+                            else if (typeof(EditorWindow).IsAssignableFrom(cls)) baseType = "EditorWindow";
+
+                            if (cls.IsAbstract)
+                            {
+                                typeName = "Abstract " + baseType;
+                            }
+                            else
+                            {
+                                typeName = baseType;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        typeName = "Unknown/Generic";
+                    }
+                }
+                fileTypeMap[path] = typeName;
+            }
+
             List<ScriptInfo> resultData = await Task.Run(() =>
             {
                 var results = new List<ScriptInfo>();
@@ -301,37 +508,107 @@ namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
 
                     if (!File.Exists(path)) continue;
 
-                    int lines = File.ReadLines(path).Count();
+                    int lines = 0;
+                    int commentLines = 0;
+                    int nonEmptyLines = 0; // ADDED
+                    bool hasUpdate = false;
+
+                    foreach (string line in File.ReadLines(path))
+                    {
+                        lines++;
+
+                        // CHANGED: Count Non-Empty lines
+                        if (!string.IsNullOrWhiteSpace(line))
+                        {
+                            nonEmptyLines++;
+                            string trimmed = line.TrimStart();
+                            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*"))
+                                commentLines++;
+                        }
+
+                        if (line.Contains("void Update()") || line.Contains("void FixedUpdate()") || line.Contains("void LateUpdate()"))
+                            hasUpdate = true;
+                    }
+
                     long size = new FileInfo(path).Length;
+
+                    string typeStr = fileTypeMap.ContainsKey(path) ? fileTypeMap[path] : "Unknown";
 
                     results.Add(new ScriptInfo
                     {
                         Name = Path.GetFileName(path),
                         LineCount = lines,
                         SizeBytes = size,
-                        Path = path
+                        Path = path,
+                        ScriptType = typeStr,
+                        CommentLineCount = commentLines,
+                        NonEmptyLineCount = nonEmptyLines, // ADDED
+                        HasUpdateMethod = hasUpdate
                     });
                 }
                 return results;
             });
 
-            scriptList = resultData.OrderByDescending(x => x.LineCount).ToList();
+            // MODIFIED: Use the sort method instead of direct sorting here
+            scriptList = resultData;
+            ApplySort();
+            UpdateHeaderVisuals();
 
             long totalLines = scriptList.Sum(x => x.LineCount);
             long totalSize = scriptList.Sum(x => x.SizeBytes);
             int totalScripts = scriptList.Count;
+
+            long totalComments = scriptList.Sum(x => x.CommentLineCount);
+            // CHANGED: Use NonEmpty Lines for Global Pct
+            long totalNonEmptyLines = scriptList.Sum(x => x.NonEmptyLineCount);
+
+            int totalUpdateScripts = scriptList.Count(x => x.HasUpdateMethod);
+
+            int totalMonos = scriptList.Count(x => x.ScriptType.Contains("MonoBehaviour"));
+            float monoPct = totalScripts > 0 ? (float)totalMonos / totalScripts : 0f;
+            float updateRatio = totalMonos > 0 ? (float)totalUpdateScripts / totalMonos : 0f;
 
             lblTotalScripts.text = totalScripts.ToString("N0");
             lblTotalLines.text = totalLines.ToString("N0");
             lblTotalSize.text = FormatBytes(totalSize);
 
             lblAvgLines.text = (totalScripts > 0 ? (float)totalLines / totalScripts : 0).ToString("F1");
-            lblAvgSize.text = FormatBytes(totalSize / (totalScripts > 0 ? totalScripts : 1));
+
+            // CHANGED: Calculate global percentage based on NonEmpty
+            double commentPct = totalNonEmptyLines > 0 ? (double)totalComments / totalNonEmptyLines * 100.0 : 0;
+            lblCommentPct.text = $"{commentPct:F1}%";
+
+            lblMonoPct.text = $"{monoPct * 100f:F0}%";
+            lblUpdateCount.text = $"{totalUpdateScripts:N0} ({updateRatio * 100f:F0}%)";
+
+            if (updateRatio > 0.5f) lblUpdateCount.style.color = new Color(1f, 0.4f, 0.4f);
+            else if (updateRatio > 0.2f) lblUpdateCount.style.color = new Color(1f, 0.8f, 0.2f);
+            else lblUpdateCount.style.color = new Color(0.4f, 1f, 0.4f);
+
+            typeStatsContainer.Clear();
+            if (scriptList.Count > 0)
+            {
+                var groups = scriptList
+                    .GroupBy(x => x.ScriptType.Replace("Abstract ", ""))
+                    .Select(g => new { Type = g.Key, Count = g.Count() })
+                    .OrderByDescending(g => g.Count);
+
+                foreach (var g in groups)
+                {
+                    var lbl = CreateStatBox(typeStatsContainer, g.Type);
+                    float typePct = totalScripts > 0 ? (float)g.Count / totalScripts * 100f : 0f;
+                    lbl.text = $"{g.Count:N0} ({typePct:F0}%)";
+                    lbl.parent.style.marginBottom = 5;
+                    lbl.parent.style.marginRight = 10;
+                    lbl.parent.style.minWidth = 80;
+                }
+            }
 
             if (scriptList.Count > 0)
             {
-                var biggest = scriptList[0];
-                var smallest = scriptList[^1];
+                var sortedByLines = scriptList.OrderByDescending(x => x.LineCount).ToList();
+                var biggest = sortedByLines[0];
+                var smallest = sortedByLines[^1];
 
                 btnBiggest.text = $"↑ Most lines: {biggest.Name} ({biggest.LineCount:N0})";
                 btnBiggest.userData = biggest.Path;
