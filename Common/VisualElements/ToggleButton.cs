@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace NoSlimes.Utils.Common.VisualElements
+namespace NoSlimes.UnityUtils.Common.VisualElements
 {
     public class ToggleButton : VisualElement
     {

@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace NoSlimes.Utils.Common.Attributes
+namespace NoSlimes.UnityUtils.Common.Attributes
 {
     public class InlineInspectorAttribute : PropertyAttribute
     {

@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace NoSlimes.Utils
+namespace NoSlimes.UnityUtils.Common
 {
     public static class GizmoUtils
     {

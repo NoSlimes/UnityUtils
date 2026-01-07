@@ -1,4 +1,4 @@
-﻿using NoSlimes.Utils.Common.Attributes;
+﻿using NoSlimes.UnityUtils.Common.Attributes;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;

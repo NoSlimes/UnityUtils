@@ -1,8 +1,8 @@
-﻿using NoSlimes.Utils.Common.Attributes;
+﻿using NoSlimes.UnityUtils.Common.Attributes;
 using UnityEditor;
 using UnityEngine;
 
-namespace NoSlimes.Utils.Editor.Drawers
+namespace NoSlimes.UnityUtils.Editor.Drawers
 {
     [CustomPropertyDrawer(typeof(InfoBoxAttribute))]
     internal class InfoBoxAttributeDrawer : PropertyDrawer

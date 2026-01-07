@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
 
-namespace NoSlimes.Utils
+namespace NoSlimes.UnityUtils.Common
 {
     public static class VectorUtils
     {

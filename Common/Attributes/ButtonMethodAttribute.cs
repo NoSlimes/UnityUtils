@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NoSlimes.Utils.Common.Attributes
+namespace NoSlimes.UnityUtils.Common.Attributes
 {
     [AttributeUsage(AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
     public class ButtonMethodAttribute : Attribute

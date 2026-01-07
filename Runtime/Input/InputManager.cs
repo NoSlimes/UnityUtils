@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-namespace NoSlimes.Utils.Input
+namespace NoSlimes.UnityUtils.Input
 {
     public struct ActionNames
     {

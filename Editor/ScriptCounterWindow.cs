@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace NoSlimes.Utils.Editor.EditorWindows.ScriptCounter
+namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 {
     public class ScriptCounterWindow : EditorWindow
     {

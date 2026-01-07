@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace NoSlimes.Utils.Common
+namespace NoSlimes.UnityUtils.Common
 {
     public static class RandomUtils 
     {

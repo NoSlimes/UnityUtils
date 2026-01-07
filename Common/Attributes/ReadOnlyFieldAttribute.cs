@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace NoSlimes.Utils.Common.Attributes
+namespace NoSlimes.UnityUtils.Common.Attributes
 {
     /// <summary>
     /// Attribute to mark a field as read-only in the Unity Inspector.

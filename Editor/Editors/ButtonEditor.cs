@@ -1,9 +1,9 @@
-using NoSlimes.Utils.Common.Attributes;
+using NoSlimes.UnityUtils.Common.Attributes;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 
-namespace NoSlimes.Utils.Editor.Editors
+namespace NoSlimes.UnityUtils.Editor.Editors
 {
     public static class ButtonDrawer
     {

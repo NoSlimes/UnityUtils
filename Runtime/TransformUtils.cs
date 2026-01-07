@@ -2,7 +2,7 @@
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace NoSlimes.Utils
+namespace NoSlimes.UnityUtils
 {
     /// <summary>
     /// Utility extension methods for <see cref="Transform"/> operations.

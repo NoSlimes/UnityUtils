@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace NoSlimes.Utils
+namespace NoSlimes.UnityUtils.Common
 {
     public static class StringUtils
     {

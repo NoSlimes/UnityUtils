@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using NoSlimes.Utils.Common.VisualElements;
+using NoSlimes.UnityUtils.Common.VisualElements;
 using UnityEditor;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace NoSlimes.Utils.Editor.EditorWindows.ProjectSetupWizard
+namespace NoSlimes.UnityUtils.Editor.EditorWindows.ProjectSetupWizard
 {
     public partial class ProjectSetupEditorWizard : EditorWindow
     {

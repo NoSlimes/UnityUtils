@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Random = UnityEngine.Random;
 
-namespace NoSlimes.Utils
+namespace NoSlimes.UnityUtils.Common
 {
     public static class CollectionUtils
     {

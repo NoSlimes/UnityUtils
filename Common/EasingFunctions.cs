@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-namespace Assets.Tools.UnityUtils.Common
+namespace NoSlimes.UnityUtils.Common
 {
     public struct EasingFunctions
     {

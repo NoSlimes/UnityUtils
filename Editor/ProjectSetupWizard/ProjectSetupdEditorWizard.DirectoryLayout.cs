@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace NoSlimes.Utils.Editor.EditorWindows.ProjectSetupWizard
+namespace NoSlimes.UnityUtils.Editor.EditorWindows.ProjectSetupWizard
 {
     public partial class ProjectSetupEditorWizard
     {
