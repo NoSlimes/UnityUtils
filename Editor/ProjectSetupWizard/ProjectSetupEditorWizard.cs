@@ -24,7 +24,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ProjectSetupWizard
 
         private readonly Dictionary<string, string> packages = new()
         {
-            { "DevCon", "https://github.com/NoSlimes/DevCon.git" },
+            { "UniTerminal", "https://github.com/NoSlimes/UniTerminal.git" },
             { "DLog", "https://github.com/NoSlimes/DLog.git"},
             { "Newtonsoft Json", "com.unity.nuget.newtonsoft-json" },
             { "Cinemachine", "com.unity.cinemachine"},
