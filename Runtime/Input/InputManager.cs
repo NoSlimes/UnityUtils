@@ -79,6 +79,7 @@ namespace NoSlimes.UnityUtils.Input
             }
 
             playerInput.notificationBehavior = PlayerNotifications.InvokeCSharpEvents;
+            playerInput.SwitchCurrentActionMap(playerInput.defaultActionMap);
 
             CacheActions();
         }
@@ -261,9 +262,9 @@ namespace NoSlimes.UnityUtils.Input
 
         public void SwitchActionMap(string mapName)
         {
-            if (playerInput.currentActionMap.name != mapName)
+            if (playerInput.currentActionMap?.name != mapName)
             {
-                previousActionMapName = playerInput.currentActionMap.name;
+                previousActionMapName = playerInput.currentActionMap?.name;
 
                 playerInput.SwitchCurrentActionMap(mapName);
                 Debug.Log($"Switched input map to '{mapName}'", this);
