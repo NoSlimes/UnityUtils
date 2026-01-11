@@ -6,16 +6,13 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ProjectSetupWizard
     [InitializeOnLoad]
     public class WizardInitializer
     {
-        private const string FirstTimeKey = "ProjectSetupWizard_FirstTime_Shown";
-
         static WizardInitializer()
         {
             EditorApplication.delayCall += () =>
             {
-                if (!EditorPrefs.GetBool(FirstTimeKey, false))
+                if (!AssetDatabase.IsValidFolder("Assets/_Game"))
                 {
                     ProjectSetupEditorWizard.ShowWindow();
-                    EditorPrefs.SetBool(FirstTimeKey, true);
                 }
             };
         }
