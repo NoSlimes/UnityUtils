@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Gameplay.ActionStack
+namespace NoSlimes.UnityUtils.Runtime.ActionStack
 {
     public class ActionStack : MonoBehaviour
     {

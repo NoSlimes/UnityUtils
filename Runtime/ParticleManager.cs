@@ -3,201 +3,116 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ParticleManager : MonoBehaviour
+namespace NoSlimes.UnityUtils.Runtime
 {
-    private class PoolInfo
+    public class ParticleManager : MonoBehaviour
     {
-        public int MinSize;
-        public int MaxSize;
-        public Stack<ParticleSystem> FreeStack;
+        private static readonly WaitForSeconds WatchInterval = new(0.05f);
 
-        public PoolInfo(int minSize, int maxSize)
+        public static ParticleManager Instance { get; private set; }
+
+        [Serializable]
+        public struct ParticleMapping
         {
-            MinSize = minSize;
-            MaxSize = maxSize;
-            FreeStack = new Stack<ParticleSystem>();
-        }
-    }
-
-    private static readonly WaitForSeconds _waitForSeconds10 = new(10f);
-    public static ParticleManager Instance { get; private set; }
-
-    [SerializeField] private ParticleMapping[] particleMappings;
-    [SerializeField] private int defaultGrowAmount = 5;
-
-    private readonly Dictionary<string, ParticleSystem> prefabLookup = new();
-    private readonly Dictionary<ParticleSystem, string> reversePrefabLookup = new();
-    private readonly Dictionary<string, PoolInfo> pools = new();
-    private readonly List<ActiveParticle> busyParticles = new();
-
-    private struct ActiveParticle
-    {
-        public string Key;
-        public ParticleSystem System;
-    }
-
-    [Serializable]
-    public struct ParticleMapping
-    {
-        public string Key;
-        public ParticleSystem Prefab;
-        public int PrewarmCount;
-        public int MaxPoolSize;
-    }
-
-    private void Awake()
-    {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
-
-        foreach (ParticleMapping mapping in particleMappings)
-        {
-            prefabLookup[mapping.Key] = mapping.Prefab;
-            reversePrefabLookup[mapping.Prefab] = mapping.Key;
-
-            PoolInfo poolInfo = new(mapping.PrewarmCount, mapping.MaxPoolSize);
-            pools[mapping.Key] = poolInfo;
-
-            GrowSubPool(mapping.Key, mapping.PrewarmCount);
+            public string Key;
+            public ParticleSystem Prefab;
+            public int Prewarm;
+            public int Max;
         }
 
-        StartCoroutine(PoolWatcherCoroutine());
-        StartCoroutine(ParticleFinishedWatcherCoroutine());
-    }
+        [SerializeField] private ParticleMapping[] particleMappings;
+        [SerializeField] private int growAmount = 5;
+        [SerializeField] private float shrinkDelay = 10f;
 
-    public ParticleSystem Play(string key, Vector3 position, Quaternion rotation, Transform parent = null)
-    {
-        if (!pools.ContainsKey(key))
+        private readonly Dictionary<string, ObjectPool<ParticleSystem>> pools = new();
+        private readonly Dictionary<string, ParticleSystem> prefabLookup = new();
+        private readonly Dictionary<ParticleSystem, string> reversePrefabLookup = new();
+
+        private void Awake()
         {
-            Debug.LogWarning($"[ParticleManager] No pool found for key: {key}");
-            return null;
-        }
-
-        ParticleSystem ps = GetPooledParticle(key);
-        if (!ps) return null;
-
-        ps.transform.SetPositionAndRotation(position, rotation);
-        if (parent != null) ps.transform.SetParent(parent);
-
-        ps.gameObject.SetActive(true);
-        ps.Play(true);
-
-        busyParticles.Add(new ActiveParticle { Key = key, System = ps });
-        return ps;
-    }
-
-    public ParticleSystem Play(ParticleSystem prefab, Vector3 position, Quaternion rotation, Transform parent = null)
-    {
-        if (prefab == null || !reversePrefabLookup.TryGetValue(prefab, out string key))
-        {
-            Debug.LogWarning($"[ParticleManager] Prefab {prefab?.name} is not registered in the manager.");
-            return null;
-        }
-        return Play(key, position, rotation, parent);
-    }
-
-    public void StopParticle(ParticleSystem ps)
-    {
-        if (ps == null) return;
-
-        for (int i = busyParticles.Count - 1; i >= 0; i--)
-        {
-            if (busyParticles[i].System == ps)
+            if (Instance != null && Instance != this)
             {
-                ReleaseParticleAtIndex(i);
+                Destroy(gameObject);
                 return;
             }
+            Instance = this;
+
+            foreach (var m in particleMappings)
+            {
+                prefabLookup[m.Key] = m.Prefab;
+                reversePrefabLookup[m.Prefab] = m.Key;
+
+                pools[m.Key] = new ObjectPool<ParticleSystem>(
+                    min: m.Prewarm,
+                    max: m.Max,
+                    grow: growAmount,
+                    shrinkDelay: shrinkDelay,
+                    factory: () =>
+                    {
+                        var ps = Instantiate(m.Prefab, transform);
+                        ps.gameObject.name = $"Pooled_{m.Key}";
+                        return ps;
+                    },
+                    onGet: ps => ps.Play(true),
+                    onRelease: ps =>
+                    {
+                        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                        ps.transform.SetParent(transform);
+                    },
+                    isAlive: ps => ps.IsAlive(true)
+                );
+            }
+
+            StartCoroutine(PoolWatcherCoroutine());
         }
-    }
 
-    private ParticleSystem GetPooledParticle(string key)
-    {
-        PoolInfo poolInfo = pools[key];
-        Stack<ParticleSystem> pool = poolInfo.FreeStack;
-
-        while (pool.Count > 0)
+        private IEnumerator PoolWatcherCoroutine()
         {
-            ParticleSystem ps = pool.Pop();
-            if (!ps) continue;
+            yield return null;
+
+            while (true)
+            {
+                foreach (var pool in pools.Values)
+                    pool.Update();
+
+                yield return WatchInterval;
+            }
+        }
+
+        public ParticleSystem Play(string key, Vector3 position, Quaternion rotation, Transform parent = null)
+        {
+            if (!pools.TryGetValue(key, out var pool))
+            {
+                Debug.LogWarning($"[ParticleManager] No pool found for key {key}");
+                return null;
+            }
+
+            var ps = pool.Get();
+            if (!ps) return null;
+
+            ps.transform.SetPositionAndRotation(position, rotation);
+            if (parent) ps.transform.SetParent(parent);
             return ps;
         }
 
-        if (busyParticles.Count + pool.Count < poolInfo.MaxSize)
+        public ParticleSystem Play(ParticleSystem prefab, Vector3 position, Quaternion rotation, Transform parent = null)
         {
-            GrowSubPool(key, defaultGrowAmount);
-            return GetPooledParticle(key);
-        }
-
-        Debug.LogWarning($"[ParticleManager] Pool for key {key} has reached its maximum size of {poolInfo.MaxSize}.");
-        return null;
-    }
-
-    private void ReleaseParticleAtIndex(int index)
-    {
-        ActiveParticle active = busyParticles[index];
-        busyParticles.RemoveAt(index);
-
-        if (active.System == null) return;
-
-        active.System.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        active.System.transform.SetParent(transform);
-        active.System.gameObject.SetActive(false);
-
-        pools[active.Key].FreeStack.Push(active.System);
-    }
-
-    private void GrowSubPool(string key, int amount)
-    {
-        PoolInfo poolInfo = pools[key];
-        ParticleSystem prefab = prefabLookup[key];
-
-        for (int i = 0; i < amount; i++)
-        {
-            ParticleSystem instance = Instantiate(prefab, transform);
-            instance.gameObject.name = $"Pooled_{key}";
-            instance.gameObject.SetActive(false);
-            poolInfo.FreeStack.Push(instance);
-        }
-    }
-
-    private IEnumerator ParticleFinishedWatcherCoroutine()
-    {
-        while (true)
-        {
-            for (int i = busyParticles.Count - 1; i >= 0; i--)
+            if (!prefab || !reversePrefabLookup.TryGetValue(prefab, out string key))
             {
-                ParticleSystem ps = busyParticles[i].System;
-
-                if (!ps || !ps.IsAlive(true))
-                {
-                    ReleaseParticleAtIndex(i);
-                }
+                Debug.LogWarning($"[ParticleManager] Prefab {(prefab != null ? prefab.name : "null")} is not registered.");
+                return null;
             }
-            yield return null;
+
+            return Play(key, position, rotation, parent);
         }
-    }
 
-    private IEnumerator PoolWatcherCoroutine()
-    {
-        while (true)
+        public void Stop(ParticleSystem ps)
         {
-            yield return _waitForSeconds10;
+            if (!ps) return;
 
-            foreach (KeyValuePair<string, PoolInfo> poolEntry in pools)
+            foreach (var pool in pools.Values)
             {
-                string key = poolEntry.Key;
-                PoolInfo poolInfo = poolEntry.Value;
-                Stack<ParticleSystem> stack = poolInfo.FreeStack;
-
-                while (stack.Count > poolInfo.MinSize)
-                {
-                    ParticleSystem ps = stack.Pop();
-                    if (ps) Destroy(ps.gameObject);
-                }
+                pool.Release(ps);
             }
         }
     }

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Gameplay.ActionStack
+namespace NoSlimes.UnityUtils.Runtime.ActionStack
 {
     public interface IAction
     {
