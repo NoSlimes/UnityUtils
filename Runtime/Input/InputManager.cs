@@ -20,6 +20,14 @@ namespace NoSlimes.UnityUtils.Input
     [RequireComponent(typeof(PlayerInput))]
     public class InputManager : MonoBehaviour
     {
+        [Flags]
+        public enum InputEventType
+        {
+            Started = 1 << 0,
+            Performed = 1 << 1,
+            Canceled = 1 << 2
+        }
+
         private static InputManager _instance;
         public static InputManager Instance
         {
@@ -156,6 +164,16 @@ namespace NoSlimes.UnityUtils.Input
             return inputActions.TryGetValue(name, out action);
         }
 
+        public void RegisterActionCallback(string actionName, Action<InputAction.CallbackContext> callback, InputEventType phase)
+        {
+            if(phase.HasFlag(InputEventType.Started))
+                RegisterActionCallback(actionName, callback, InputActionPhase.Started);
+            if (phase.HasFlag(InputEventType.Performed))
+                RegisterActionCallback(actionName, callback, InputActionPhase.Performed);
+            if (phase.HasFlag(InputEventType.Canceled))
+                RegisterActionCallback(actionName, callback, InputActionPhase.Canceled);
+        }
+
         public void RegisterActionCallback(string actionName, Action<InputAction.CallbackContext> callback, InputActionPhase phase = InputActionPhase.Performed)
         {
             if (string.IsNullOrEmpty(actionName) || callback == null)
@@ -191,6 +209,16 @@ namespace NoSlimes.UnityUtils.Input
                     Debug.LogWarning("Unsupported input phase for registration.", this);
                     break;
             }
+        }
+
+        public void UnregisterActionCallback(string actionName, Action<InputAction.CallbackContext> callback, InputEventType phase)
+        {
+            if(phase.HasFlag(InputEventType.Started))
+                UnregisterActionCallback(actionName, callback, InputActionPhase.Started);
+            if (phase.HasFlag(InputEventType.Performed))
+                UnregisterActionCallback(actionName, callback, InputActionPhase.Performed);
+            if (phase.HasFlag(InputEventType.Canceled))
+                UnregisterActionCallback(actionName, callback, InputActionPhase.Canceled);
         }
 
         public void UnregisterActionCallback(string actionName, Action<InputAction.CallbackContext> callback, InputActionPhase phase = InputActionPhase.Performed)
