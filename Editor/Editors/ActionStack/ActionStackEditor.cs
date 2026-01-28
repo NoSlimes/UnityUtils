@@ -1,27 +1,26 @@
-using NoSlimes.UnityUtils.Runtime.ActionStacks;
+using NoSlimes.UnityUtils.Runtime.ActionStacking;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.UIElements;
 
-[CustomEditor(typeof(StateStack), true)]
-public class StateStackEditor : Editor
+[CustomEditor(typeof(ActionStack), true)]
+public class ActionStackEditor : Editor
 {
     public override void OnInspectorGUI()
     {
         base.OnInspectorGUI();
-        StateStack stateStack = (StateStack)target;
+        ActionStack stateStack = (ActionStack)target;
 
         EditorGUILayout.Separator();
 
         EditorGUILayout.BeginVertical("box");
 
-        EditorGUILayout.LabelField($"{nameof(StateStack)} States", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"{nameof(ActionStack)} Actions", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
         if (Application.isPlaying)
         {
-            for (int i = 0; i < stateStack.States.Count; i++)
+            for (int i = 0; i < stateStack.Actions.Count; i++)
             {
-                StateStack.IState state = stateStack.States[i];
+                ActionStack.IAction state = stateStack.Actions[i];
 
                 if (i == 0) GUI.backgroundColor = Color.green;
                 else GUI.backgroundColor = Color.white;
@@ -29,7 +28,7 @@ public class StateStackEditor : Editor
                 EditorGUILayout.BeginVertical("box");
 
                 string activeTag = (i == 0) ? "[ACTIVE] " : "[PAUSED] ";
-                EditorGUILayout.LabelField($"{activeTag}State {i}: {state.GetType().Name}", EditorStyles.boldLabel);
+                EditorGUILayout.LabelField($"{activeTag}Action {i}: {state.GetType().Name}", EditorStyles.boldLabel);
                 if (state is MonoBehaviour mb)
                 {
                     EditorGUI.BeginDisabledGroup(true);
@@ -44,14 +43,14 @@ public class StateStackEditor : Editor
                 }
                 else
                 {
-                    EditorGUILayout.LabelField("State Type", state.GetType().FullName);
+                    EditorGUILayout.LabelField("Action Type", state.GetType().FullName);
                 }
                 EditorGUILayout.EndVertical();
             }
         }
         else
         {
-            EditorGUILayout.HelpBox($"{nameof(StateStack)} information is only available during play mode.", MessageType.Info);
+            EditorGUILayout.HelpBox($"{nameof(ActionStack)} information is only available during play mode.", MessageType.Info);
         }
 
         EditorGUILayout.EndVertical();

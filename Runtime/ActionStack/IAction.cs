@@ -1,10 +1,10 @@
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Runtime.ActionStacks
+namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 {
-    public partial class StateStack
+    public partial class ActionStack
     {
-        public interface IState
+        public interface IAction
         {
             void OnStart(bool firstTime);
             void OnFinish();
@@ -14,7 +14,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             bool IsDone();
         }
 
-        public abstract class State : IState
+        public abstract class Action : IAction
         {
             public virtual void OnStart(bool firstTime) { }
             public virtual void OnFinish() { }
@@ -24,7 +24,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             public abstract bool IsDone();
         }
 
-        public abstract class StateMB : MonoBehaviour, IState
+        public abstract class ActionMB : MonoBehaviour, IAction
         {
             public virtual void OnStart(bool firstTime) { }
             public virtual void OnFinish() { }
@@ -38,7 +38,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         /// ScriptableObject-based states can be risky if they hold stateful data.
         /// ScriptableObject.Instantiate could be used to create copies.
         /// </summary>
-        public abstract class StateSO : ScriptableObject, IState
+        public abstract class ActionSO : ScriptableObject, IAction
         {
             public virtual void OnStart(bool firstTime) { }
             public virtual void OnFinish() { }

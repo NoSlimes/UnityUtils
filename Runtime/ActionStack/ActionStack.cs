@@ -1,24 +1,23 @@
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Runtime.ActionStacks
+namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 {
-    public partial class StateStack : MonoBehaviour
+    public partial class ActionStack : MonoBehaviour
     {
-        private static StateStack _main;
-        public static StateStack Main
+        private static ActionStack _main;
+        public static ActionStack Main
         {
             get
             {
                 if (_main == null && Application.isPlaying)
                 {
-                    GameObject obj = new("StateStack_Main")
+                    GameObject obj = new($"{nameof(ActionStack)}_Main")
                     {
                         hideFlags = HideFlags.DontSave
                     };
 
-                    _main = obj.AddComponent<StateStack>();
+                    _main = obj.AddComponent<ActionStack>();
                     DontDestroyOnLoad(obj);
                 }
 
@@ -26,102 +25,104 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             }
         }
 
-        private readonly List<IState> stack = new();
-        private readonly HashSet<IState> firstTimeStates = new();
-        private IState currentState = null;
+        private readonly List<IAction> stack = new();
+        private readonly HashSet<IAction> firstTimeActions = new();
 
-        public IReadOnlyList<IState> States => stack;
-        public IState CurrentState => currentState;
-        public bool IsEmpty => currentState == null && stack.Count == 0;
+        public IReadOnlyList<IAction> Actions => stack;
+        public IAction CurrentAction { get; private set; } = null;
+        public bool IsEmpty => CurrentAction == null && stack.Count == 0;
 
         #region Unity Lifecycle
         protected virtual void Update()
         {
-            UpdateStates();
+            UpdateActions();
         }
 
-        private void UpdateStates()
+        private void UpdateActions()
         {
             if (IsEmpty)
                 return;
 
-            while (currentState == null && stack.Count > 0)
+            while (CurrentAction == null && stack.Count > 0)
             {
-                currentState = stack[0];
+                CurrentAction = stack[0];
 
                 // Check if this specific instance has EVER been initialized by this stack.
                 // In the original, this was based on whether the state was currently 
                 // in the stack, which broke the logic for pooled/reused objects (states).
-                bool firstTime = !firstTimeStates.Contains(currentState);
+                bool firstTime = !firstTimeActions.Contains(CurrentAction);
 
                 if (firstTime)
                 {
-                    firstTimeStates.Add(currentState);
+                    firstTimeActions.Add(CurrentAction);
                 }
 
-                currentState.OnStart(firstTime);
+                CurrentAction.OnStart(firstTime);
 
-                if (currentState != null)
+                if (CurrentAction != null)
                 {
-                    if (stack.Count > 0 && currentState != stack[0])
+                    if (stack.Count > 0 && CurrentAction != stack[0])
                     {
-                        currentState = null;
-                        UpdateStates();
+                        CurrentAction = null;
+                        UpdateActions();
                     }
                 }
             }
 
-            if (currentState != null)
+            if (CurrentAction != null)
             {
-                currentState.OnUpdate();
+                CurrentAction.OnUpdate();
 
-                if (stack.Count > 0 && currentState == stack[0])
+                if (stack.Count > 0 && CurrentAction == stack[0])
                 {
-                    if (currentState.IsDone())
+                    if (CurrentAction.IsDone())
                     {
                         stack.RemoveAt(0);
-                        currentState.OnFinish();
+                        CurrentAction.OnFinish();
 
                         // REMOVED firstTimeStates.Remove(currentState);
                         // By NOT removing the state from this HashSet, we ensure that if 
                         // the same object instance is pushed again (e.g. from a pool), 
                         // OnStart(false) is called instead of OnStart(true).
 
-                        currentState = null;
-                        UpdateStates(); // Added to allow the stack to cycle to the next state in the same frame
+                        CurrentAction = null;
+                        UpdateActions(); // Added to allow the stack to cycle to the next state in the same frame
                     }
                 }
                 else
                 {
-                    currentState = null;
+                    CurrentAction = null;
                 }
             }
         }
         #endregion
 
-        public void PushState(IState state)
+        public void PushAction(IAction state, bool reinitializeState = false)
         {
             if (state == null) return;
 
             if (stack.Contains(state))
             {
-                // If it's already at the top, we don't need to do anything.
-                // This prevents re-triggering OnStart every frame.
+                // Ignore if it's already on top
                 if (stack.Count > 0 && stack[0] == state)
                     return;
+
+                if (reinitializeState) // If requested, ensure OnStart(true) is called when moved to top
+                {
+                    firstTimeActions.Remove(state); 
+                }
 
                 // If it's buried in the stack, remove it so we can move it to the top.
                 stack.Remove(state);
             }
 
-            // Insert at the top (Index 0)
             stack.Insert(0, state);
 
             // If the top changed, null the currentState so UpdateStates() 
             // triggers OnStart() for the new (or moved) state.
-            if (currentState != state)
+            if (CurrentAction != state)
             {
-                currentState = null;
+                CurrentAction = null;
             }
         }
     }
