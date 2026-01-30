@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using System.Runtime.CompilerServices;
 
 namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 {
@@ -26,7 +27,11 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
         }
 
         private readonly List<IAction> stack = new();
-        private readonly HashSet<IAction> firstTimeActions = new();
+
+        // Tracks which IAction instances have been initialized before
+        // I used ConditionalWeakTable to avoid memory leaks, though minor,
+        // from accumulating over time from short-lived IAction instances.
+        private readonly ConditionalWeakTable<IAction, object> initializedActions = new();
 
         public IReadOnlyList<IAction> Actions => stack;
         public IAction CurrentAction { get; private set; } = null;
@@ -43,61 +48,85 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             if (IsEmpty)
                 return;
 
-            while (CurrentAction == null && stack.Count > 0)
+            int iterations = 0;
+            const int MAX_ITERATIONS = 100;
+
+            while (iterations < MAX_ITERATIONS)
             {
-                CurrentAction = stack[0];
 
-                // Check if this specific instance has EVER been initialized by this stack.
-                // In the original, this was based on whether the state was currently 
-                // in the stack, which broke the logic for pooled/reused objects (states).
-                bool firstTime = !firstTimeActions.Contains(CurrentAction);
-
-                if (firstTime)
+                if (CurrentAction == null)
                 {
-                    firstTimeActions.Add(CurrentAction);
-                }
+                    if (stack.Count == 0)
+                        break; // No actions to process
 
-                CurrentAction.OnStart(firstTime);
+                    CurrentAction = stack[0];
+
+                    // Check if this specific instance has EVER been initialized by this stack.
+                    // I wanted to support reusing state instances without having them reinitialize every time.
+                    bool firstTime = !initializedActions.TryGetValue(CurrentAction, out _);
+
+                    if (firstTime)
+                    {
+                        initializedActions.Add(CurrentAction, null);
+                        CurrentAction.OnInitialize(); // Replaces IAction.OnBegin(true)
+                    }
+
+                    CurrentAction.OnBegin();
+
+                    if (CurrentAction != null)
+                    {
+                        if (stack.Count > 0 && CurrentAction != stack[0])
+                        {
+                            CurrentAction?.OnInterrupt();
+                            CurrentAction = null;
+                            iterations++;
+                            continue; // Stack changed during OnBegin, restart loop
+                        }
+                    }
+                }
 
                 if (CurrentAction != null)
                 {
-                    if (stack.Count > 0 && CurrentAction != stack[0])
+                    CurrentAction.OnUpdate();
+
+                    if (stack.Count > 0 && CurrentAction == stack[0])
                     {
-                        CurrentAction = null;
-                        UpdateActions();
+                        if (CurrentAction.IsDone())
+                        {
+                            stack.RemoveAt(0);
+                            CurrentAction.OnFinish();
+
+                            // REMOVED firstTimeStates.Remove(currentState);
+                            // By not removing the state from the initializedActions I have more control over when
+                            // a state is reinitialized. 
+                            // Reinitialization is controlled by presence in initializedActions,
+                            // which can be cleared explicitly when pushing.
+
+                            CurrentAction = null;
+                            iterations++;
+                            continue; // State finished, restart loop
+                        }
+
+                        break; // State still active, exit loop
                     }
-                }
-            }
 
-            if (CurrentAction != null)
-            {
-                CurrentAction.OnUpdate();
-
-                if (stack.Count > 0 && CurrentAction == stack[0])
-                {
-                    if (CurrentAction.IsDone())
-                    {
-                        stack.RemoveAt(0);
-                        CurrentAction.OnFinish();
-
-                        // REMOVED firstTimeStates.Remove(currentState);
-                        // By NOT removing the state from this HashSet, we ensure that if 
-                        // the same object instance is pushed again (e.g. from a pool), 
-                        // OnStart(false) is called instead of OnStart(true).
-
-                        CurrentAction = null;
-                        UpdateActions(); // Added to allow the stack to cycle to the next state in the same frame
-                    }
-                }
-                else
-                {
+                    CurrentAction.OnInterrupt();
                     CurrentAction = null;
+                    iterations++;
+                    continue; // Stack changed during OnUpdate, restart loop
                 }
+
+                break; // No changes, exit loop
             }
         }
         #endregion
 
-        public void PushAction(IAction state, bool reinitializeState = false)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="state"></param>
+        /// <param name="reinitializeAction"></param>
+        public void PushAction(IAction state, bool reinitializeAction = true)
         {
             if (state == null) return;
 
@@ -107,9 +136,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
                 if (stack.Count > 0 && stack[0] == state)
                     return;
 
-                if (reinitializeState) // If requested, ensure OnStart(true) is called when moved to top
+                if (reinitializeAction) // If requested, ensure OnStart(true) is called when moved to top
                 {
-                    firstTimeActions.Remove(state); 
+                    initializedActions.Remove(state);
                 }
 
                 // If it's buried in the stack, remove it so we can move it to the top.

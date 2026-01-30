@@ -6,7 +6,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
     {
         public interface IAction
         {
-            void OnStart(bool firstTime);
+            void OnInitialize();
+            void OnBegin();
+            void OnInterrupt();
             void OnFinish();
 
             void OnUpdate();
@@ -16,7 +18,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 
         public abstract class Action : IAction
         {
-            public virtual void OnStart(bool firstTime) { }
+            public virtual void OnInitialize() { }
+            public virtual void OnBegin() { }
+            public virtual void OnInterrupt() { }
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
@@ -26,7 +30,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 
         public abstract class ActionMB : MonoBehaviour, IAction
         {
-            public virtual void OnStart(bool firstTime) { }
+            public virtual void OnInitialize() { }
+            public virtual void OnBegin() { }
+            public virtual void OnInterrupt() { }
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
@@ -40,7 +46,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
         /// </summary>
         public abstract class ActionSO : ScriptableObject, IAction
         {
-            public virtual void OnStart(bool firstTime) { }
+            public virtual void OnInitialize() { }
+            public virtual void OnBegin() { }
+            public virtual void OnInterrupt() { }
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
