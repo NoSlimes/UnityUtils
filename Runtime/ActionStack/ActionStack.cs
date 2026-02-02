@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System.Runtime.CompilerServices;
+using UnityEditor.Experimental.GraphView;
 
 namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 {
@@ -40,10 +41,15 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
         #region Unity Lifecycle
         protected virtual void Update()
         {
-            UpdateActions();
+            UpdateActions(false);
         }
 
-        private void UpdateActions()
+        protected virtual void LateUpdate()
+        {
+            UpdateActions(true);
+        }
+
+        private void UpdateActions(bool useLateUpdate)
         {
             if (IsEmpty)
                 return;
@@ -87,7 +93,10 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 
                 if (CurrentAction != null)
                 {
-                    CurrentAction.OnUpdate();
+                    if (useLateUpdate)
+                        CurrentAction.OnLateUpdate();
+                    else
+                        CurrentAction.OnUpdate();
 
                     if (stack.Count > 0 && CurrentAction == stack[0])
                     {
@@ -113,7 +122,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
                     CurrentAction.OnInterrupt();
                     CurrentAction = null;
                     iterations++;
-                    continue; // Stack changed during OnUpdate, restart loop
+                    continue; // Stack changed during update, restart loop
                 }
 
                 break; // No changes, exit loop
@@ -147,12 +156,13 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
 
             stack.Insert(0, state);
 
-            // If the top changed, null the currentState so UpdateStates() 
-            // triggers OnStart() for the new (or moved) state.
-            if (CurrentAction != state)
+            //// If the top changed, null the currentState so UpdateStates() 
+            //// triggers OnStart() for the new (or moved) state.
+            if (CurrentAction != null && CurrentAction != state)
             {
-                CurrentAction = null;
+                CurrentAction.OnInterrupt();
             }
+            CurrentAction = null;
         }
     }
 }

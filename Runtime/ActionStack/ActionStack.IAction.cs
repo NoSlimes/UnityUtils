@@ -12,6 +12,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             void OnFinish();
 
             void OnUpdate();
+            void OnLateUpdate();
 
             bool IsDone();
         }
@@ -24,6 +25,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
+            public virtual void OnLateUpdate() { }
 
             public abstract bool IsDone();
         }
@@ -36,6 +38,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
+            public virtual void OnLateUpdate() { }
 
             public abstract bool IsDone();
         }
@@ -52,6 +55,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             public virtual void OnFinish() { }
 
             public virtual void OnUpdate() { }
+            public virtual void OnLateUpdate() { }
 
             public abstract bool IsDone();
         }
