@@ -38,6 +38,11 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
         public IAction CurrentAction { get; private set; } = null;
         public bool IsEmpty => CurrentAction == null && stack.Count == 0;
 
+        public event System.Action<IAction> OnActionPushed;
+        public event System.Action<IAction> OnActionPopped;
+        public event System.Action<IAction> OnActionBegun;
+        public event System.Action<IAction> OnActionInterrupted;
+
         #region Unity Lifecycle
         protected virtual void Update()
         {
@@ -78,6 +83,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
                     }
 
                     CurrentAction.OnBegin();
+                    OnActionBegun?.Invoke(CurrentAction);
 
                     if (CurrentAction != null)
                     {
@@ -104,6 +110,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
                         {
                             stack.RemoveAt(0);
                             CurrentAction.OnFinish();
+                            OnActionPopped?.Invoke(CurrentAction);
 
                             // REMOVED firstTimeStates.Remove(currentState);
                             // By not removing the state from the initializedActions I have more control over when
@@ -120,6 +127,8 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
                     }
 
                     CurrentAction.OnInterrupt();
+                    OnActionInterrupted?.Invoke(CurrentAction);
+
                     CurrentAction = null;
                     iterations++;
                     continue; // Stack changed during update, restart loop
@@ -155,12 +164,14 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacking
             }
 
             stack.Insert(0, state);
+            OnActionPushed?.Invoke(state);
 
             //// If the top changed, null the currentState so UpdateStates() 
             //// triggers OnStart() for the new (or moved) state.
             if (CurrentAction != null && CurrentAction != state)
             {
                 CurrentAction.OnInterrupt();
+                OnActionInterrupted?.Invoke(CurrentAction);
             }
             CurrentAction = null;
         }
