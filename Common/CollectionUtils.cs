@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.Rendering;
 using Random = UnityEngine.Random;
 
 namespace NoSlimes.UnityUtils.Common
@@ -19,7 +20,7 @@ namespace NoSlimes.UnityUtils.Common
         /// <exception cref="ArgumentNullException">
         /// Thrown if <paramref name="source"/> is <c>null</c>.
         /// </exception>
-        public static IEnumerable<T> Shuffle<T>(this IEnumerable<T> source)
+        public static IEnumerable<T> Shuffle<T>(this IEnumerable<T> source, System.Random rng = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -28,7 +29,13 @@ namespace NoSlimes.UnityUtils.Common
 
             for (int i = buffer.Count - 1; i > 0; i--)
             {
-                int j = Random.Range(0, i + 1);
+                int j;
+
+                if (rng != null)
+                    j = rng.Next(0, i + 1);
+                else
+                    j = Random.Range(0, i + 1);
+
                 (buffer[i], buffer[j]) = (buffer[j], buffer[i]);
             }
 
@@ -47,7 +54,7 @@ namespace NoSlimes.UnityUtils.Common
         /// <exception cref="InvalidOperationException">
         /// Thrown if the collection is empty.
         /// </exception>
-        public static T PickRandom<T>(this IEnumerable<T> source)
+        public static T PickRandom<T>(this IEnumerable<T> source, System.Random rng = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -56,6 +63,9 @@ namespace NoSlimes.UnityUtils.Common
 
             if (list.Count == 0)
                 throw new InvalidOperationException("Source collection is empty.");
+
+            if (rng != null)
+                return list[rng.Next(0, list.Count)];
 
             return list[Random.Range(0, list.Count)];
         }
@@ -78,7 +88,7 @@ namespace NoSlimes.UnityUtils.Common
         /// <exception cref="ArgumentOutOfRangeException">
         /// Thrown if <paramref name="count"/> is less than zero.
         /// </exception>
-        public static IEnumerable<T> PickRandomSubset<T>(this IEnumerable<T> source, int count)
+        public static IEnumerable<T> PickRandomSubset<T>(this IEnumerable<T> source, int count, System.Random rng = null)
         {
             if (source == null)
                 throw new ArgumentNullException(nameof(source));
@@ -86,7 +96,7 @@ namespace NoSlimes.UnityUtils.Common
             if (count < 0)
                 throw new ArgumentOutOfRangeException(nameof(count));
 
-            return source.Shuffle().Take(count);
+            return source.Shuffle(rng).Take(count);
         }
 
         /// <summary>
