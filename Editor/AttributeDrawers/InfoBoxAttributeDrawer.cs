@@ -5,14 +5,21 @@ using UnityEngine;
 namespace NoSlimes.UnityUtils.Editor.Drawers
 {
     [CustomPropertyDrawer(typeof(InfoBoxAttribute))]
-    internal class InfoBoxAttributeDrawer : DecoratorDrawer
+    internal class InfoBoxAttributeDrawer : PropertyDrawer
     {
-        public override float GetHeight()
+        public override float GetPropertyHeight(SerializedProperty property, GUIContent label)
         {
-            return EditorGUIUtility.singleLineHeight * 2 + 4;
+            float helpBoxHeight = EditorStyles.helpBox.CalcHeight(
+                new GUIContent(((InfoBoxAttribute)attribute).Message),
+                EditorGUIUtility.currentViewWidth
+            );
+
+            float propertyHeight = EditorGUI.GetPropertyHeight(property, label, true);
+
+            return helpBoxHeight + 4 + propertyHeight;
         }
 
-        public override void OnGUI(Rect position)
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
             InfoBoxAttribute attr = (InfoBoxAttribute)attribute;
 
@@ -24,7 +31,22 @@ namespace NoSlimes.UnityUtils.Editor.Drawers
                 _ => MessageType.Info
             };
 
-            EditorGUI.HelpBox(position, attr.Message, messageType);
+            float helpBoxHeight = EditorStyles.helpBox.CalcHeight(
+                new GUIContent(attr.Message),
+                position.width
+            );
+
+            Rect helpBoxRect = new Rect(position.x, position.y, position.width, helpBoxHeight);
+            EditorGUI.HelpBox(helpBoxRect, attr.Message, messageType);
+
+            Rect propertyRect = new Rect(
+                position.x,
+                helpBoxRect.yMax + 4,
+                position.width,
+                EditorGUI.GetPropertyHeight(property, label, true)
+            );
+
+            EditorGUI.PropertyField(propertyRect, property, label, true);
         }
     }
 }
