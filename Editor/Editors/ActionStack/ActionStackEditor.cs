@@ -1,4 +1,4 @@
-using NoSlimes.UnityUtils.Runtime.ActionStacking;
+using NoSlimes.UnityUtils.Runtime.ActionStacks;
 using UnityEditor;
 using UnityEngine;
 

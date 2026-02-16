@@ -3,7 +3,7 @@ using UnityEngine;
 using System.Runtime.CompilerServices;
 using UnityEditor.Experimental.GraphView;
 
-namespace NoSlimes.UnityUtils.Runtime.ActionStacking
+namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 {
     public partial class ActionStack : MonoBehaviour
     {

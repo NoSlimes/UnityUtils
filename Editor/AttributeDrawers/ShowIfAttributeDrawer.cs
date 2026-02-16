@@ -38,7 +38,7 @@ namespace NoSlimes.UnityUtils.Editor.Drawers
 
             bool show = conditionProp != null && conditionProp.propertyType == SerializedPropertyType.Boolean
                         ? conditionProp.boolValue
-                        : true; 
+                        : true;
 
             if (attr.Inverse) show = !show;
 

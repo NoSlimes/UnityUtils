@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Runtime.ActionStacking
+namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 {
     public partial class ActionStack
     {
