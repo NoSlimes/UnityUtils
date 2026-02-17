@@ -14,11 +14,13 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             void OnUpdate();
             void OnLateUpdate();
 
-            bool IsDone();
+            public bool IsDone { get; }
         }
 
         public abstract class Action : IAction
         {
+            public virtual bool IsDone { get; protected set; }
+
             public virtual void OnInitialize() { }
             public virtual void OnBegin() { }
             public virtual void OnInterrupt() { }
@@ -26,12 +28,12 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             public virtual void OnUpdate() { }
             public virtual void OnLateUpdate() { }
-
-            public abstract bool IsDone();
         }
 
         public abstract class ActionMB : MonoBehaviour, IAction
         {
+            public virtual bool IsDone { get; protected set; }
+
             public virtual void OnInitialize() { }
             public virtual void OnBegin() { }
             public virtual void OnInterrupt() { }
@@ -39,8 +41,6 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             public virtual void OnUpdate() { }
             public virtual void OnLateUpdate() { }
-
-            public abstract bool IsDone();
         }
 
         /// <summary>
@@ -49,6 +49,8 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         /// </summary>
         public abstract class ActionSO : ScriptableObject, IAction
         {
+            public virtual bool IsDone { get; protected set; }
+
             public virtual void OnInitialize() { }
             public virtual void OnBegin() { }
             public virtual void OnInterrupt() { }
@@ -56,8 +58,6 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             public virtual void OnUpdate() { }
             public virtual void OnLateUpdate() { }
-
-            public abstract bool IsDone();
         }
     }
 }

@@ -106,7 +106,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
                     if (stack.Count > 0 && CurrentAction == stack[0])
                     {
-                        if (CurrentAction.IsDone())
+                        if (CurrentAction.IsDone)
                         {
                             stack.RemoveAt(0);
                             CurrentAction.OnFinish();
@@ -144,7 +144,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         /// </summary>
         /// <param name="state"></param>
         /// <param name="reinitializeAction"></param>
-        public void PushAction(IAction state, bool reinitializeAction = true)
+        public void Push(IAction state, bool reinitializeAction = true)
         {
             if (state == null) return;
 
@@ -174,6 +174,33 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
                 OnActionInterrupted?.Invoke(CurrentAction);
             }
             CurrentAction = null;
+        }
+
+        public void Pop()
+        {
+            if (IsEmpty)
+                return;
+
+            IAction state = stack[0];
+            Pop(state);
+        }
+
+        public void Pop(IAction state)
+        {
+            if (state == null || IsEmpty)
+                return;
+            int index = stack.IndexOf(state);
+            if (index == -1)
+                return; // State not found
+
+            stack.RemoveAt(index);
+            state.OnFinish();
+
+            OnActionPopped?.Invoke(state);
+            if (CurrentAction == state)
+            {
+                CurrentAction = null; // Let Update() trigger the next action's OnStart()
+            }
         }
     }
 }
