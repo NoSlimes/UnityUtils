@@ -26,7 +26,7 @@ namespace NoSlimes.UnityUtils.Runtime
 
         private readonly Dictionary<string, ObjectPool<ParticleSystem>> pools = new();
         private readonly Dictionary<string, ParticleSystem> prefabLookup = new();
-        private readonly Dictionary<ParticleSystem, string> reversePrefabLookup = new();
+        private readonly Dictionary<string, string> reversePrefabLookup = new();
 
         private void Awake()
         {
@@ -40,7 +40,7 @@ namespace NoSlimes.UnityUtils.Runtime
             foreach (var m in particleMappings)
             {
                 prefabLookup[m.Key] = m.Prefab;
-                reversePrefabLookup[m.Prefab] = m.Key;
+                reversePrefabLookup[m.Prefab.name] = m.Key;
 
                 pools[m.Key] = new ObjectPool<ParticleSystem>(
                     min: m.Prewarm,
@@ -97,7 +97,7 @@ namespace NoSlimes.UnityUtils.Runtime
 
         public ParticleSystem Play(ParticleSystem prefab, Vector3 position, Quaternion rotation, Transform parent = null)
         {
-            if (!prefab || !reversePrefabLookup.TryGetValue(prefab, out string key))
+            if (!prefab || !reversePrefabLookup.TryGetValue(prefab.name, out string key))
             {
                 Debug.LogWarning($"[ParticleManager] Prefab {(prefab != null ? prefab.name : "null")} is not registered.");
                 return null;

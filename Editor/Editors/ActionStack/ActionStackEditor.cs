@@ -1,58 +1,61 @@
-using NoSlimes.UnityUtils.Runtime.ActionStacks;
 using UnityEditor;
 using UnityEngine;
+using NoSlimes.UnityUtils.Runtime.ActionStacks;
+using NoSlimes.UnityUtils.Runtime.ActionStacks.Actions;
 
-[CustomEditor(typeof(ActionStack), true)]
+[CustomEditor(typeof(ActionStackBase<>), true)]
 public class ActionStackEditor : Editor
 {
     public override void OnInspectorGUI()
     {
         base.OnInspectorGUI();
-        ActionStack stateStack = (ActionStack)target;
+
+        IActionStack stateStack = (IActionStack)target;
 
         EditorGUILayout.Separator();
-
         EditorGUILayout.BeginVertical("box");
 
-        EditorGUILayout.LabelField($"{nameof(ActionStack)} Actions", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField($"{stateStack.GetType().Name} Actions", EditorStyles.boldLabel);
         EditorGUILayout.Separator();
+
         if (Application.isPlaying)
         {
-            for (int i = 0; i < stateStack.Actions.Count; i++)
+            var actions = stateStack.Actions;
+            for (int i = 0; i < actions.Count; i++)
             {
-                ActionStack.IAction state = stateStack.Actions[i];
-
-                if (i == 0) GUI.backgroundColor = Color.green;
-                else GUI.backgroundColor = Color.white;
+                IAction action = actions[i];
+                GUI.backgroundColor = (i == 0) ? Color.green : Color.white;
 
                 EditorGUILayout.BeginVertical("box");
-
                 string activeTag = (i == 0) ? "[ACTIVE] " : "[PAUSED] ";
-                EditorGUILayout.LabelField($"{activeTag}Action {i}: {state.GetType().Name}", EditorStyles.boldLabel);
-                if (state is MonoBehaviour mb)
+                EditorGUILayout.LabelField($"{activeTag}Action {i}: {action.GetType().Name}", EditorStyles.boldLabel);
+
+                switch (action)
                 {
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.ObjectField("GameObject", mb.gameObject, typeof(GameObject), true);
-                    EditorGUI.EndDisabledGroup();
+                    case MonoBehaviour mb:
+                        EditorGUI.BeginDisabledGroup(true);
+                        EditorGUILayout.ObjectField("GameObject", mb.gameObject, typeof(GameObject), true);
+                        EditorGUI.EndDisabledGroup();
+                        break;
+                    case ScriptableObject so:
+                        EditorGUI.BeginDisabledGroup(true);
+                        EditorGUILayout.ObjectField("ScriptableObject", so, typeof(ScriptableObject), false);
+                        EditorGUI.EndDisabledGroup();
+                        break;
+                    default:
+                        EditorGUILayout.LabelField("Action Type", action.GetType().FullName);
+                        break;
                 }
-                else if (state is ScriptableObject so)
-                {
-                    EditorGUI.BeginDisabledGroup(true);
-                    EditorGUILayout.ObjectField("ScriptableObject", so, typeof(ScriptableObject), false);
-                    EditorGUI.EndDisabledGroup();
-                }
-                else
-                {
-                    EditorGUILayout.LabelField("Action Type", state.GetType().FullName);
-                }
+
                 EditorGUILayout.EndVertical();
             }
         }
         else
         {
-            EditorGUILayout.HelpBox($"{nameof(ActionStack)} information is only available during play mode.", MessageType.Info);
+            EditorGUILayout.HelpBox($"{stateStack.GetType().Name} action information is only available during play mode.", MessageType.Info);
         }
 
         EditorGUILayout.EndVertical();
+        GUI.backgroundColor = Color.white;
     }
 }
