@@ -17,10 +17,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             {
                 if (_main == null && Application.isPlaying)
                 {
-                    GameObject obj = new($"{typeof(TActionStack).Name}_Main")
-                    {
-                        hideFlags = HideFlags.DontSave
-                    };
+                    GameObject obj = new($"{typeof(TActionStack).Name}_Main");
                     _main = obj.AddComponent<TActionStack>();
 
                     if ((_main as SingletonActionStack<TActionStack, TActionBase>).PersistAcrossScenes)
