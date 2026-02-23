@@ -43,6 +43,18 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             UpdateActions(true);
         }
 
+        private void OnDestroy()
+        {
+            for (int i = 0; i < stack.Count; i++)
+            {
+                stack[i].OnFinish();
+            }
+
+            stack.Clear();
+            CurrentAction = null;
+            initializedActions.Clear();
+        }
+
         private void UpdateActions(bool useLateUpdate)
         {
             if (IsEmpty)
