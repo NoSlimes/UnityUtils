@@ -18,12 +18,10 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             public string Path;
             public string ScriptType;
             public int CommentLineCount;
-            // ADDED: Track non-empty lines for accurate ratio
             public int NonEmptyLineCount;
             public bool HasUpdateMethod;
         }
 
-        // ADDED: CommentRatio to sort options
         private enum SortOption { Name, Type, Lines, Size, CommentRatio }
         private SortOption currentSort = SortOption.Lines;
         private bool sortAscending = false;
@@ -44,7 +42,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
         private Button btnBiggest, btnSmallest;
 
-        // ADDED: headerComments
         private Label headerName, headerType, headerLines, headerSize, headerComments;
 
         private bool isProcessing = false;
@@ -58,7 +55,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
         {
             ScriptCounterWindow window = GetWindow<ScriptCounterWindow>();
             window.titleContent = new GUIContent("Script Analytics");
-            // CHANGED: Widen window slightly to accommodate the new margin
             window.minSize = new Vector2(620, 600);
             window.Show();
         }
@@ -169,7 +165,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             headerSize = CreateHeaderLabel("Size", 55, SortOption.Size);
             headerComments = CreateHeaderLabel("Comm. %", 70, SortOption.CommentRatio);
 
-            // CHANGED: Added left margin for spacing
             headerComments.style.marginLeft = 10;
 
             listHeader.Add(headerName);
@@ -243,7 +238,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
             var lblComm = new Label();
             lblComm.style.width = 70;
-            // CHANGED: Added left margin for spacing
             lblComm.style.marginLeft = 10;
 
             container.Add(lblName);
@@ -272,7 +266,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             lblLines.text = info.LineCount.ToString("N0");
             lblSize.text = FormatBytes(info.SizeBytes);
 
-            // CHANGED: Use NonEmptyLineCount for the denominator to ignore blank lines
             float ratio = info.NonEmptyLineCount > 0 ? (float)info.CommentLineCount / info.NonEmptyLineCount : 0f;
             lblComm.text = $"{ratio:P0}";
 
@@ -403,7 +396,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
                     query = sortAscending ? query.OrderBy(x => x.SizeBytes) : query.OrderByDescending(x => x.SizeBytes);
                     break;
                 case SortOption.CommentRatio:
-                    // CHANGED: Sort based on NonEmptyLineCount denominator
                     query = sortAscending
                         ? query.OrderBy(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0)
                         : query.OrderByDescending(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0);
@@ -510,14 +502,13 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
                     int lines = 0;
                     int commentLines = 0;
-                    int nonEmptyLines = 0; // ADDED
+                    int nonEmptyLines = 0;
                     bool hasUpdate = false;
 
                     foreach (string line in File.ReadLines(path))
                     {
                         lines++;
 
-                        // CHANGED: Count Non-Empty lines
                         if (!string.IsNullOrWhiteSpace(line))
                         {
                             nonEmptyLines++;
@@ -542,14 +533,13 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
                         Path = path,
                         ScriptType = typeStr,
                         CommentLineCount = commentLines,
-                        NonEmptyLineCount = nonEmptyLines, // ADDED
+                        NonEmptyLineCount = nonEmptyLines, 
                         HasUpdateMethod = hasUpdate
                     });
                 }
                 return results;
             });
 
-            // MODIFIED: Use the sort method instead of direct sorting here
             scriptList = resultData;
             ApplySort();
             UpdateHeaderVisuals();
@@ -559,11 +549,9 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             int totalScripts = scriptList.Count;
 
             long totalComments = scriptList.Sum(x => x.CommentLineCount);
-            // CHANGED: Use NonEmpty Lines for Global Pct
             long totalNonEmptyLines = scriptList.Sum(x => x.NonEmptyLineCount);
-
             int totalUpdateScripts = scriptList.Count(x => x.HasUpdateMethod);
-
+            
             int totalMonos = scriptList.Count(x => x.ScriptType.Contains("MonoBehaviour"));
             float monoPct = totalScripts > 0 ? (float)totalMonos / totalScripts : 0f;
             float updateRatio = totalMonos > 0 ? (float)totalUpdateScripts / totalMonos : 0f;
@@ -574,7 +562,6 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
             lblAvgLines.text = (totalScripts > 0 ? (float)totalLines / totalScripts : 0).ToString("F1");
 
-            // CHANGED: Calculate global percentage based on NonEmpty
             double commentPct = totalNonEmptyLines > 0 ? (double)totalComments / totalNonEmptyLines * 100.0 : 0;
             lblCommentPct.text = $"{commentPct:F1}%";
 
