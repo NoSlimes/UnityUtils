@@ -47,7 +47,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         {
             for (int i = 0; i < stack.Count; i++)
             {
-                stack[i].OnFinish();
+                stack[i]?.OnFinish();
             }
 
             stack.Clear();
