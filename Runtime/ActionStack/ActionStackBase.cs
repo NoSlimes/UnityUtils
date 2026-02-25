@@ -47,6 +47,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         {
             for (int i = 0; i < stack.Count; i++)
             {
+                if (stack[i] is MonoBehaviour mb && mb == null)
+                    continue;
+
                 stack[i]?.OnFinish();
             }
 
