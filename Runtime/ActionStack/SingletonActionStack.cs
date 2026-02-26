@@ -7,10 +7,9 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         where TActionStack : MonoBehaviour, IActionStack
         where TActionBase : class, IAction
     {
-        private static TActionStack _main;
-
         protected virtual bool PersistAcrossScenes => false;
 
+        private static TActionStack _main;
         public static TActionStack Main
         {
             get
