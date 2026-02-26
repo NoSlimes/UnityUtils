@@ -97,7 +97,7 @@ namespace NoSlimes.UnityUtils.Runtime
 
         public ParticleSystem Play(ParticleSystem prefab, Vector3 position, Quaternion rotation, Transform parent = null)
         {
-            if (!prefab || !reversePrefabLookup.TryGetValue(prefab.name, out string key))
+            if (!prefab || !reversePrefabLookup.TryGetValue(prefab.name, out string key)) // Had to check by name here since unity hates me
             {
                 Debug.LogWarning($"[ParticleManager] Prefab {(prefab != null ? prefab.name : "null")} is not registered.");
                 return null;
