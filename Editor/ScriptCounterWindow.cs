@@ -48,7 +48,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
         private float currentProgress = 0f;
         private string currentProcessingFile = "";
 
-        private string selectedFolder = "Assets";
+        private string selectedFolder;
 
         [MenuItem("Tools/UnityUtils/Script Analytics")]
         private static void OpenWindow()
@@ -61,7 +61,8 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
         public void CreateGUI()
         {
-            TryFindScriptsFolder();
+            if (string.IsNullOrEmpty(selectedFolder))
+                TryFindScriptsFolder();
 
             VisualElement root = rootVisualElement;
             root.style.paddingTop = 10;
@@ -83,8 +84,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             selectFolderButton = new Button(SelectFolder) { text = "Select Folder" };
             selectFolderButton.style.height = 25;
 
-            folderLabel = new Label(selectedFolder);
-            folderLabel.style.flexGrow = 1;
+            folderLabel = new Label(string.IsNullOrEmpty(selectedFolder) ? "Assets" : selectedFolder); folderLabel.style.flexGrow = 1;
             folderLabel.style.unityTextAlign = TextAnchor.MiddleLeft;
             folderLabel.style.marginLeft = 6;
 
