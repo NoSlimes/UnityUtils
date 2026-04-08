@@ -117,6 +117,8 @@ namespace NoSlimes.UnityUtils.Runtime
         public AudioSource PlayAudioAtPoint(AudioResource resource, Vector3 position, AudioType audioType = AudioType.SFX)
             => PlayAudioAtPoint(resource, position, 1f, audioType);
 
+        public AudioSource PlayAudioAtPoint(AudioResource resource, Vector3 position) => PlayAudioAtPoint(resource, position, 1f, AudioType.SFX);
+
         public AudioSource PlayAudioAttached(AudioResource resource, Transform parent, float volume = 1f, AudioType audioType = AudioType.SFX)
         {
             if (!resource) return null;
