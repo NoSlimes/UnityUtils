@@ -75,17 +75,19 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
                     CurrentAction = stack[0];
 
-                    // Check if this specific instance has EVER been initialized by this stack.
-                    // I wanted to support reusing state instances without having them reinitialize every time.
                     bool firstTime = !initializedActions.TryGetValue(CurrentActionTyped, out _);
 
                     if (firstTime)
                     {
                         initializedActions.Add(CurrentActionTyped, null);
-                        CurrentAction.OnInitialize(); // Replaces IAction.OnBegin(true)
+                        CurrentAction.OnInitialize();
+                        CurrentAction.OnBegin();
+                    }
+                    else
+                    {
+                        CurrentAction.OnResume();
                     }
 
-                    CurrentAction.OnBegin();
                     OnActionBegun?.Invoke(CurrentActionTyped);
 
                     if (CurrentAction != null)
@@ -121,12 +123,6 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
                             OnActionPopped?.Invoke(finished);
 
-                            // REMOVED firstTimeStates.Remove(currentState);
-                            // By not removing the state from the initializedActions I have more control over when
-                            // a state is reinitialized. 
-                            // Reinitialization is controlled by presence in initializedActions,
-                            // which can be cleared explicitly when pushing.
-
                             iterations++;
                             continue; // State finished, restart loop
                         }
@@ -144,6 +140,11 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
                 }
 
                 break; // No changes, exit loop
+            }
+
+            if (iterations >= MAX_ITERATIONS)
+            {
+                Debug.LogError($"[ActionStackBase] Exceeded maximum iterations ({MAX_ITERATIONS}) in UpdateActions. This likely indicates a loop in the action stack. Current stack count: {stack.Count}");
             }
         }
         #endregion
