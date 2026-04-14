@@ -1,61 +1,68 @@
-using UnityEditor;
-using UnityEngine;
 using NoSlimes.UnityUtils.Runtime.ActionStacks;
 using NoSlimes.UnityUtils.Runtime.ActionStacks.Actions;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
 
-[CustomEditor(typeof(ActionStackBase<>), true)]
-public class ActionStackEditor : Editor
+namespace NoSlimes.UnityUtils.Editor.Editors
 {
-    public override void OnInspectorGUI()
+    [CustomEditor(typeof(ActionStack), true)]
+    public class ActionStackEditor : UnityEditor.Editor
     {
-        base.OnInspectorGUI();
-
-        IActionStack stateStack = (IActionStack)target;
-
-        EditorGUILayout.Separator();
-        EditorGUILayout.BeginVertical("box");
-
-        EditorGUILayout.LabelField($"{stateStack.GetType().Name} Actions", EditorStyles.boldLabel);
-        EditorGUILayout.Separator();
-
-        if (Application.isPlaying)
+        public override void OnInspectorGUI()
         {
-            var actions = stateStack.Actions;
-            for (int i = 0; i < actions.Count; i++)
+            base.OnInspectorGUI();
+
+            IActionStack stateStack = (IActionStack)target;
+
+            EditorGUILayout.Separator();
+            EditorGUILayout.BeginVertical("box");
+
+            EditorGUILayout.LabelField($"{stateStack.GetType().Name} Actions", EditorStyles.boldLabel);
+            EditorGUILayout.Separator();
+
+            if (Application.isPlaying)
             {
-                IAction action = actions[i];
-                GUI.backgroundColor = (i == 0) ? Color.green : Color.white;
-
-                EditorGUILayout.BeginVertical("box");
-                string activeTag = (i == 0) ? "[ACTIVE] " : "[PAUSED] ";
-                EditorGUILayout.LabelField($"{activeTag}Action {i}: {action.GetType().Name}", EditorStyles.boldLabel);
-
-                switch (action)
+                IReadOnlyList<IAction> actions = stateStack.Actions;
+                for (int i = 0; i < actions.Count; i++)
                 {
-                    case MonoBehaviour mb:
-                        EditorGUI.BeginDisabledGroup(true);
-                        EditorGUILayout.ObjectField("GameObject", mb.gameObject, typeof(GameObject), true);
-                        EditorGUI.EndDisabledGroup();
-                        break;
-                    case ScriptableObject so:
-                        EditorGUI.BeginDisabledGroup(true);
-                        EditorGUILayout.ObjectField("ScriptableObject", so, typeof(ScriptableObject), false);
-                        EditorGUI.EndDisabledGroup();
-                        break;
-                    default:
-                        EditorGUILayout.LabelField("Action Type", action.GetType().FullName);
-                        break;
+                    IAction action = actions[i];
+                    GUI.backgroundColor = (i == 0) ? Color.green : Color.white;
+
+                    EditorGUILayout.BeginVertical("box");
+                    string activeTag = (i == 0) ? "[ACTIVE] " : "[PAUSED] ";
+                    EditorGUILayout.LabelField($"{activeTag}Action {i}: {action.GetType().Name}", EditorStyles.boldLabel);
+
+                    switch (action)
+                    {
+                        case MonoBehaviour mb:
+                            EditorGUI.BeginDisabledGroup(true);
+                            EditorGUILayout.ObjectField("GameObject", mb.gameObject, typeof(GameObject), true);
+                            EditorGUI.EndDisabledGroup();
+                            break;
+                        case ScriptableObject so:
+                            EditorGUI.BeginDisabledGroup(true);
+                            EditorGUILayout.ObjectField("ScriptableObject", so, typeof(ScriptableObject), false);
+                            EditorGUI.EndDisabledGroup();
+                            break;
+                        default:
+                            EditorGUILayout.LabelField("Action Type", action.GetType().FullName);
+                            break;
+                    }
+
+                    EditorGUILayout.EndVertical();
                 }
-
-                EditorGUILayout.EndVertical();
             }
-        }
-        else
-        {
-            EditorGUILayout.HelpBox($"{stateStack.GetType().Name} action information is only available during play mode.", MessageType.Info);
+            else
+            {
+                EditorGUILayout.HelpBox($"{stateStack.GetType().Name} action information is only available during play mode.", MessageType.Info);
+            }
+
+            EditorGUILayout.EndVertical();
+            GUI.backgroundColor = Color.white;
         }
 
-        EditorGUILayout.EndVertical();
-        GUI.backgroundColor = Color.white;
+        [CustomEditor(typeof(SingletonActionStackBase<,>), true)]
+        public class SingletonActionStackEditor : ActionStackEditor { }
     }
 }

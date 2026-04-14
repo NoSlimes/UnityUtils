@@ -11,56 +11,38 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         IAction CurrentAction { get; }
     }
 
-    public abstract class ActionStackBase<TActionBase> : MonoBehaviour, IActionStack
-        where TActionBase : class, IAction
+    public interface IActionStack<T> : IActionStack
+    {
+        void PushAction(T action, bool reinitializeAction = true);
+        void Pop();
+        void Pop(T action);
+    }
+
+    public class ActionStack<TActionBase> : IActionStack<TActionBase>
+     where TActionBase : class, IAction
     {
         private readonly List<TActionBase> stack = new();
 
-        // Tracks which IAction instances have been initialized before
-        // I used ConditionalWeakTable to avoid memory leaks, though minor,
-        // from accumulating over time from short-lived IAction instances.
         private readonly ConditionalWeakTable<TActionBase, object> initializedActions = new();
 
         public IReadOnlyList<IAction> Actions => stack;
-        public IAction CurrentAction { get; private set; } = null;
-        protected TActionBase CurrentActionTyped => CurrentAction as TActionBase;
 
-        public bool IsEmpty => CurrentAction == null && stack.Count == 0;
+        public IAction CurrentAction => stack.Count > 0 ? stack[0] : null;
+        public TActionBase CurrentActionTyped => stack.Count > 0 ? stack[0] : null;
+
+        public bool IsEmpty => stack.Count == 0;
 
         public event System.Action<TActionBase> OnActionPushed;
         public event System.Action<TActionBase> OnActionPopped;
         public event System.Action<TActionBase> OnActionBegun;
         public event System.Action<TActionBase> OnActionInterrupted;
 
-        #region Unity Lifecycle
-        protected virtual void Update()
-        {
-            UpdateActions(false);
-        }
-
-        protected virtual void LateUpdate()
-        {
-            UpdateActions(true);
-        }
-
-        private void OnDestroy()
-        {
-            for (int i = 0; i < stack.Count; i++)
-            {
-                if (stack[i] is MonoBehaviour mb && mb == null)
-                    continue;
-
-                stack[i]?.OnFinish();
-            }
-
-            stack.Clear();
-            CurrentAction = null;
-            initializedActions.Clear();
-        }
-
+        public virtual void Update() => UpdateActions(false);
+        public virtual void LateUpdate() => UpdateActions(true);
+        
         private void UpdateActions(bool useLateUpdate)
         {
-            if (IsEmpty)
+            if (stack.Count == 0)
                 return;
 
             int iterations = 0;
@@ -68,174 +50,142 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             while (iterations < MAX_ITERATIONS)
             {
-                if (CurrentAction == null)
+                if (stack.Count == 0)
+                    break;
+
+                var current = stack[0];
+
+                if (!ReferenceEquals(CurrentAction, current))
+                    break;
+
+                bool firstTime = !initializedActions.TryGetValue(current, out _);
+
+                if (firstTime)
                 {
-                    if (stack.Count == 0)
-                        break; // No actions to process
-
-                    CurrentAction = stack[0];
-
-                    bool firstTime = !initializedActions.TryGetValue(CurrentActionTyped, out _);
-
-                    if (firstTime)
-                    {
-                        initializedActions.Add(CurrentActionTyped, null);
-                        CurrentAction.OnInitialize();
-                        CurrentAction.OnBegin();
-                    }
-                    else
-                    {
-                        CurrentAction.OnResume();
-                    }
-
-                    OnActionBegun?.Invoke(CurrentActionTyped);
-
-                    if (CurrentAction != null)
-                    {
-                        if (stack.Count > 0 && CurrentAction != stack[0])
-                        {
-                            var interrupted = CurrentActionTyped;
-                            CurrentAction.OnInterrupt();
-                            CurrentAction = null;
-                            OnActionInterrupted?.Invoke(interrupted);
-                            iterations++;
-                            continue; // Stack changed during OnBegin, restart loop
-                        }
-                    }
+                    initializedActions.Add(current, null);
+                    current.OnInitialize();
+                    current.OnBegin();
+                    OnActionBegun?.Invoke(current);
                 }
 
-                if (CurrentAction != null)
+                if (useLateUpdate)
+                    current.OnLateUpdate();
+                else
+                    current.OnUpdate();
+
+                if (stack.Count == 0 || !ReferenceEquals(stack[0], current))
                 {
-                    if (useLateUpdate)
-                        CurrentAction.OnLateUpdate();
-                    else
-                        CurrentAction.OnUpdate();
-
-                    if (stack.Count > 0 && CurrentAction == stack[0])
-                    {
-                        if (CurrentAction.IsDone)
-                        {
-                            var finished = CurrentActionTyped;
-
-                            stack.RemoveAt(0);
-                            CurrentAction.OnFinish();
-                            CurrentAction = null;
-
-                            OnActionPopped?.Invoke(finished);
-
-                            iterations++;
-                            continue; // State finished, restart loop
-                        }
-
-                        break; // State still active, exit loop
-                    }
-
-                    var interrupted = CurrentActionTyped;
-                    CurrentAction.OnInterrupt();
-                    CurrentAction = null;
-                    OnActionInterrupted?.Invoke(interrupted);
-
+                    HandleInterrupt(current);
                     iterations++;
-                    continue; // Stack changed during update, restart loop
+                    continue;
                 }
 
-                break; // No changes, exit loop
+                if (current.IsDone)
+                {
+                    HandleFinish(current);
+                    iterations++;
+                    continue;
+                }
+
+                break;
             }
 
             if (iterations >= MAX_ITERATIONS)
             {
-                Debug.LogError($"[ActionStackBase] Exceeded maximum iterations ({MAX_ITERATIONS}) in UpdateActions. This likely indicates a loop in the action stack. Current stack count: {stack.Count}");
+                Debug.LogError("[ActionStackBase] Infinite loop detected in UpdateActions.");
             }
         }
-        #endregion
 
-        /// <summary>
-        /// Pushes the specified action onto the stack, optionally reinitializing it before activation.
-        /// </summary>
-        /// <param name="action">The action to be pushed onto the stack. Cannot be null.</param>
-        /// <param name="reinitializeAction">true to reinitialize the action before it is activated; otherwise, false. The default is true.</param>
-        public virtual void PushAction(TActionBase action, bool reinitializeAction = true)
+        private void HandleInterrupt(TActionBase action)
         {
-            PushInternal(action, reinitializeAction);
+            action.OnInterrupt();
+            OnActionInterrupted?.Invoke(action);
         }
 
-        protected void PushInternal(TActionBase action, bool reinitializeAction = true)
+        private void HandleFinish(TActionBase action)
         {
-            if (action == null) return;
+            stack.RemoveAt(0);
+            action.OnFinish();
+            OnActionPopped?.Invoke(action);
+        }
+
+        public virtual void PushAction(TActionBase action, bool reinitializeAction = true)
+        {
+            if (action == null)
+                return;
 
             if (stack.Contains(action))
             {
-                // Ignore if it's already on top
-                if (stack.Count > 0 && stack[0] == action)
+                if (stack.Count > 0 && ReferenceEquals(stack[0], action))
                     return;
 
-                if (reinitializeAction) // If requested, ensure OnStart(true) is called when moved to top
-                {
-                    initializedActions.Remove(action);
-                }
-
-                // If it's buried in the stack, remove it so we can move it to the top.
                 stack.Remove(action);
+
+                if (reinitializeAction)
+                    initializedActions.Remove(action);
+            }
+
+            bool hadCurrent = stack.Count > 0;
+
+            if (hadCurrent)
+            {
+                var previous = stack[0];
+                HandleInterrupt(previous);
             }
 
             stack.Insert(0, action);
+
             OnActionPushed?.Invoke(action);
-
-            //// If the top changed, null the currentState so UpdateStates() 
-            //// triggers OnStart() for the new (or moved) state.
-            if (CurrentAction != null && CurrentAction != action)
-            {
-                var interrupted = CurrentActionTyped;
-                CurrentAction.OnInterrupt();
-                CurrentAction = null;
-                OnActionInterrupted?.Invoke(interrupted);
-            }
         }
 
-        public void PopAction()
+        public void Pop()
         {
-            if (IsEmpty)
+            if (stack.Count == 0)
                 return;
 
-            TActionBase state = stack[0];
-            Pop(state);
+            Pop(stack[0]);
         }
 
-        public void Pop(TActionBase state)
+        public void Pop(TActionBase action)
         {
-            if (state == null || IsEmpty)
+            if (action == null || stack.Count == 0)
                 return;
-            int index = stack.IndexOf(state);
+
+            int index = stack.IndexOf(action);
             if (index == -1)
-                return; // State not found
+                return;
+
+            bool isCurrent = ReferenceEquals(stack[0], action);
+
+            if (isCurrent)
+                HandleInterrupt(action);
 
             stack.RemoveAt(index);
-            state.OnFinish();
 
-            if (CurrentAction == state)
-            {
-                CurrentAction = null; // Let Update() trigger the next action's OnStart()
-            }
-
-            OnActionPopped?.Invoke(state);
+            action.OnFinish();
+            OnActionPopped?.Invoke(action);
         }
 
         public void ClearStack()
         {
-            var popped = stack.ToArray();
+            ForceClear(true);
+        }
 
-            for (int i = 0; i < popped.Length; i++)
+        private void ForceClear(bool fireEvents)
+        {
+            var copy = stack.ToArray();
+
+            foreach (var a in copy)
             {
-                popped[i].OnFinish();
+                a.OnInterrupt();
+                a.OnFinish();
+
+                if (fireEvents)
+                    OnActionPopped?.Invoke(a);
             }
 
             stack.Clear();
-            CurrentAction = null;
-
-            for (int i = 0; i < popped.Length; i++)
-            {
-                OnActionPopped?.Invoke(popped[i]);
-            }
+            initializedActions.Clear();
         }
     }
 }
