@@ -18,31 +18,32 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         void Pop(T action);
     }
 
-    public class ActionStack<TActionBase> : IActionStack<TActionBase>
-     where TActionBase : class, IAction
+    public class ActionStack<TActionBase> : IActionStack
+        where TActionBase : class, IAction
     {
         private readonly List<TActionBase> stack = new();
-
         private readonly ConditionalWeakTable<TActionBase, object> initializedActions = new();
+        private readonly HashSet<TActionBase> interrupted = new();
 
         public IReadOnlyList<IAction> Actions => stack;
 
-        public IAction CurrentAction => stack.Count > 0 ? stack[0] : null;
-        public TActionBase CurrentActionTyped => stack.Count > 0 ? stack[0] : null;
+        public IAction CurrentAction => CurrentActionTyped;
+        public TActionBase CurrentActionTyped { get; private set; }
 
-        public bool IsEmpty => stack.Count == 0;
+        public bool IsEmpty => CurrentActionTyped == null && stack.Count == 0;
 
         public event System.Action<TActionBase> OnActionPushed;
         public event System.Action<TActionBase> OnActionPopped;
         public event System.Action<TActionBase> OnActionBegun;
         public event System.Action<TActionBase> OnActionInterrupted;
+        public event System.Action<TActionBase> OnActionResumed;
 
-        public virtual void Update() => UpdateActions(false);
-        public virtual void LateUpdate() => UpdateActions(true);
-        
+        public void Update() => UpdateActions(false);
+        public void LateUpdate() => UpdateActions(true);
+
         private void UpdateActions(bool useLateUpdate)
         {
-            if (stack.Count == 0)
+            if (IsEmpty)
                 return;
 
             int iterations = 0;
@@ -50,66 +51,100 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             while (iterations < MAX_ITERATIONS)
             {
-                if (stack.Count == 0)
-                    break;
-
-                var current = stack[0];
-
-                if (!ReferenceEquals(CurrentAction, current))
-                    break;
-
-                bool firstTime = !initializedActions.TryGetValue(current, out _);
-
-                if (firstTime)
+                // Current action
+                if (CurrentActionTyped == null)
                 {
-                    initializedActions.Add(current, null);
-                    current.OnInitialize();
-                    current.OnBegin();
-                    OnActionBegun?.Invoke(current);
+                    if (stack.Count == 0)
+                        break;
+
+                    CurrentActionTyped = stack[0];
+
+                    bool firstTime = !initializedActions.TryGetValue(CurrentActionTyped, out _);
+                    bool wasInterrupted = interrupted.Contains(CurrentActionTyped);
+
+                    if (firstTime)
+                    {
+                        initializedActions.Add(CurrentActionTyped, null);
+                        CurrentActionTyped.OnInitialize();
+                    }
+
+                    if (wasInterrupted)
+                    {
+                        interrupted.Remove(CurrentActionTyped);
+                        CurrentActionTyped.OnResume();
+                        OnActionResumed?.Invoke(CurrentActionTyped);
+                    }
+                    else
+                    {
+                        CurrentActionTyped.OnBegin();
+                        OnActionBegun?.Invoke(CurrentActionTyped);
+                    }
+
+                    // Stack changed during enter
+                    if (stack.Count > 0 && CurrentActionTyped != stack[0])
+                    {
+                        var interruptedAction = CurrentActionTyped;
+
+                        CurrentActionTyped.OnInterrupt();
+                        OnActionInterrupted?.Invoke(interruptedAction);
+
+                        interrupted.Add(interruptedAction);
+
+                        CurrentActionTyped = null;
+                        iterations++;
+                        continue;
+                    }
                 }
 
-                if (useLateUpdate)
-                    current.OnLateUpdate();
-                else
-                    current.OnUpdate();
-
-                if (stack.Count == 0 || !ReferenceEquals(stack[0], current))
+                // Update current action
+                if (CurrentActionTyped != null)
                 {
-                    HandleInterrupt(current);
-                    iterations++;
-                    continue;
-                }
+                    if (useLateUpdate)
+                        CurrentActionTyped.OnLateUpdate();
+                    else
+                        CurrentActionTyped.OnUpdate();
 
-                if (current.IsDone)
-                {
-                    HandleFinish(current);
-                    iterations++;
-                    continue;
+                    // Stack integrity check
+                    if (stack.Count == 0 || CurrentActionTyped != stack[0])
+                    {
+                        var interruptedAction = CurrentActionTyped;
+
+                        CurrentActionTyped.OnInterrupt();
+                        OnActionInterrupted?.Invoke(interruptedAction);
+
+                        interrupted.Add(interruptedAction);
+
+                        CurrentActionTyped = null;
+                        iterations++;
+                        continue;
+                    }
+
+                    // Completion
+                    if (CurrentActionTyped.IsDone)
+                    {
+                        var finished = CurrentActionTyped;
+
+                        stack.RemoveAt(0);
+                        CurrentActionTyped.OnFinish();
+
+                        interrupted.Remove(CurrentActionTyped);
+
+                        CurrentActionTyped = null;
+
+                        OnActionPopped?.Invoke(finished);
+
+                        iterations++;
+                        continue;
+                    }
+
+                    break;
                 }
 
                 break;
             }
-
-            if (iterations >= MAX_ITERATIONS)
-            {
-                Debug.LogError("[ActionStackBase] Infinite loop detected in UpdateActions.");
-            }
         }
 
-        private void HandleInterrupt(TActionBase action)
-        {
-            action.OnInterrupt();
-            OnActionInterrupted?.Invoke(action);
-        }
-
-        private void HandleFinish(TActionBase action)
-        {
-            stack.RemoveAt(0);
-            action.OnFinish();
-            OnActionPopped?.Invoke(action);
-        }
-
-        public virtual void PushAction(TActionBase action, bool reinitializeAction = true)
+        public void PushAction(TActionBase action, bool reinitializeAction = true)
         {
             if (action == null)
                 return;
@@ -119,31 +154,34 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
                 if (stack.Count > 0 && ReferenceEquals(stack[0], action))
                     return;
 
-                stack.Remove(action);
-
                 if (reinitializeAction)
                     initializedActions.Remove(action);
-            }
 
-            bool hadCurrent = stack.Count > 0;
-
-            if (hadCurrent)
-            {
-                var previous = stack[0];
-                HandleInterrupt(previous);
+                stack.Remove(action);
             }
 
             stack.Insert(0, action);
-
             OnActionPushed?.Invoke(action);
+
+            if (CurrentActionTyped != null && CurrentActionTyped != action)
+            {
+                var interruptedAction = CurrentActionTyped;
+
+                CurrentActionTyped.OnInterrupt();
+                OnActionInterrupted?.Invoke(interruptedAction);
+
+                interrupted.Add(interruptedAction);
+
+                CurrentActionTyped = null;
+            }
         }
 
         public void Pop()
         {
-            if (stack.Count == 0)
+            if (IsEmpty)
                 return;
 
-            Pop(stack[0]);
+            Pop(CurrentActionTyped);
         }
 
         public void Pop(TActionBase action)
@@ -155,37 +193,51 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             if (index == -1)
                 return;
 
-            bool isCurrent = ReferenceEquals(stack[0], action);
+            bool isCurrent = ReferenceEquals(CurrentActionTyped, action);
 
             if (isCurrent)
-                HandleInterrupt(action);
+            {
+                action.OnInterrupt();
+                OnActionInterrupted?.Invoke(action);
+
+                interrupted.Add(action);
+
+                CurrentActionTyped = null;
+            }
 
             stack.RemoveAt(index);
-
             action.OnFinish();
+
+            interrupted.Remove(action);
+
             OnActionPopped?.Invoke(action);
         }
 
         public void ClearStack()
         {
-            ForceClear(true);
-        }
-
-        private void ForceClear(bool fireEvents)
-        {
             var copy = stack.ToArray();
 
             foreach (var a in copy)
             {
-                a.OnInterrupt();
-                a.OnFinish();
+                if (ReferenceEquals(CurrentActionTyped, a))
+                {
+                    a.OnInterrupt();
+                    OnActionInterrupted?.Invoke(a);
 
-                if (fireEvents)
-                    OnActionPopped?.Invoke(a);
+                    interrupted.Add(a);
+
+                    CurrentActionTyped = null;
+                }
+
+                a.OnFinish();
+                interrupted.Remove(a);
+
+                OnActionPopped?.Invoke(a);
             }
 
             stack.Clear();
             initializedActions.Clear();
+            interrupted.Clear();
         }
     }
 }

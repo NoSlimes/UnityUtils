@@ -27,7 +27,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks.Actions
 
         public virtual void OnInterrupt() { }
         public virtual void OnResume() { }
-        
+
         public virtual void OnFinish() { }
 
         public virtual void OnUpdate() { }
@@ -43,7 +43,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks.Actions
 
         public virtual void OnInterrupt() { }
         public virtual void OnResume() { }
-        
+
         public virtual void OnFinish() { }
 
         public virtual void OnUpdate() { }
@@ -60,9 +60,10 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks.Actions
 
         public virtual void OnInitialize() { }
         public virtual void OnBegin() { }
-        
+
         public virtual void OnInterrupt() { }
         public virtual void OnResume() { }
+
 
         public virtual void OnFinish() { }
 
