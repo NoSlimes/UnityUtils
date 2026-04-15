@@ -51,52 +51,12 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
             while (iterations < MAX_ITERATIONS)
             {
-                // Current action
-                if (CurrentActionTyped == null)
+                if (!ResolveCurrentAction())
                 {
-                    if (stack.Count == 0)
-                        break;
-
-                    CurrentActionTyped = stack[0];
-
-                    bool firstTime = !initializedActions.TryGetValue(CurrentActionTyped, out _);
-                    bool wasInterrupted = interrupted.Contains(CurrentActionTyped);
-
-                    if (firstTime)
-                    {
-                        initializedActions.Add(CurrentActionTyped, null);
-                        CurrentActionTyped.OnInitialize();
-                    }
-
-                    if (wasInterrupted)
-                    {
-                        interrupted.Remove(CurrentActionTyped);
-                        CurrentActionTyped.OnResume();
-                        OnActionResumed?.Invoke(CurrentActionTyped);
-                    }
-                    else
-                    {
-                        CurrentActionTyped.OnBegin();
-                        OnActionBegun?.Invoke(CurrentActionTyped);
-                    }
-
-                    // Stack changed during enter
-                    if (stack.Count > 0 && CurrentActionTyped != stack[0])
-                    {
-                        var interruptedAction = CurrentActionTyped;
-
-                        CurrentActionTyped.OnInterrupt();
-                        OnActionInterrupted?.Invoke(interruptedAction);
-
-                        interrupted.Add(interruptedAction);
-
-                        CurrentActionTyped = null;
-                        iterations++;
-                        continue;
-                    }
+                    iterations++;
+                    continue;
                 }
 
-                // Update current action
                 if (CurrentActionTyped != null)
                 {
                     if (useLateUpdate)
@@ -104,35 +64,16 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
                     else
                         CurrentActionTyped.OnUpdate();
 
-                    // Stack integrity check
                     if (stack.Count == 0 || CurrentActionTyped != stack[0])
                     {
-                        var interruptedAction = CurrentActionTyped;
-
-                        CurrentActionTyped.OnInterrupt();
-                        OnActionInterrupted?.Invoke(interruptedAction);
-
-                        interrupted.Add(interruptedAction);
-
-                        CurrentActionTyped = null;
+                        InterruptCurrentAction();
                         iterations++;
                         continue;
                     }
 
-                    // Completion
                     if (CurrentActionTyped.IsDone)
                     {
-                        var finished = CurrentActionTyped;
-
-                        stack.RemoveAt(0);
-                        CurrentActionTyped.OnFinish();
-
-                        interrupted.Remove(CurrentActionTyped);
-
-                        CurrentActionTyped = null;
-
-                        OnActionPopped?.Invoke(finished);
-
+                        FinishCurrentAction();
                         iterations++;
                         continue;
                     }
@@ -142,6 +83,76 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
 
                 break;
             }
+        }
+
+        public bool ResolveCurrentAction()
+        {
+            if (CurrentActionTyped != null)
+                return true;
+
+            if (stack.Count == 0)
+                return false;
+
+            CurrentActionTyped = stack[0];
+
+            bool firstTime = !initializedActions.TryGetValue(CurrentActionTyped, out _);
+            bool wasInterrupted = interrupted.Contains(CurrentActionTyped);
+
+            if (firstTime)
+            {
+                initializedActions.Add(CurrentActionTyped, null);
+                CurrentActionTyped.OnInitialize();
+            }
+
+            if (wasInterrupted)
+            {
+                interrupted.Remove(CurrentActionTyped);
+                CurrentActionTyped.OnResume();
+                OnActionResumed?.Invoke(CurrentActionTyped);
+            }
+            else
+            {
+                CurrentActionTyped.OnBegin();
+                OnActionBegun?.Invoke(CurrentActionTyped);
+            }
+
+            if (stack.Count > 0 && CurrentActionTyped != stack[0])
+            {
+                InterruptCurrentAction();
+                return false;
+            }
+
+            return true;
+        }
+
+        private void InterruptCurrentAction()
+        {
+            if (CurrentActionTyped == null)
+                return;
+
+            var interruptedAction = CurrentActionTyped;
+
+            CurrentActionTyped.OnInterrupt();
+            OnActionInterrupted?.Invoke(interruptedAction);
+
+            interrupted.Add(interruptedAction);
+            CurrentActionTyped = null;
+        }
+
+        private void FinishCurrentAction()
+        {
+            if (CurrentActionTyped == null)
+                return;
+
+            var finished = CurrentActionTyped;
+
+            stack.RemoveAt(0);
+            finished.OnFinish();
+
+            interrupted.Remove(finished);
+            CurrentActionTyped = null;
+
+            OnActionPopped?.Invoke(finished);
         }
 
         public void PushAction(TActionBase action, bool reinitializeAction = true)
@@ -164,16 +175,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             OnActionPushed?.Invoke(action);
 
             if (CurrentActionTyped != null && CurrentActionTyped != action)
-            {
-                var interruptedAction = CurrentActionTyped;
-
-                CurrentActionTyped.OnInterrupt();
-                OnActionInterrupted?.Invoke(interruptedAction);
-
-                interrupted.Add(interruptedAction);
-
-                CurrentActionTyped = null;
-            }
+                InterruptCurrentAction();
         }
 
         public void Pop()
@@ -196,14 +198,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             bool isCurrent = ReferenceEquals(CurrentActionTyped, action);
 
             if (isCurrent)
-            {
-                action.OnInterrupt();
-                OnActionInterrupted?.Invoke(action);
-
-                interrupted.Add(action);
-
-                CurrentActionTyped = null;
-            }
+                InterruptCurrentAction();
 
             stack.RemoveAt(index);
             action.OnFinish();
@@ -220,14 +215,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             foreach (var a in copy)
             {
                 if (ReferenceEquals(CurrentActionTyped, a))
-                {
-                    a.OnInterrupt();
-                    OnActionInterrupted?.Invoke(a);
-
-                    interrupted.Add(a);
-
-                    CurrentActionTyped = null;
-                }
+                    InterruptCurrentAction();
 
                 a.OnFinish();
                 interrupted.Remove(a);
