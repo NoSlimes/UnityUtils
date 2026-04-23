@@ -40,7 +40,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             if (_main == this)
                 _main = null;
 
-            actionStack.ClearStack();
+            actionStack.Clear();
         }
 
         public IReadOnlyList<IAction> Actions => actionStack.Actions;
@@ -50,5 +50,6 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         public void PushAction(TActionBase action, bool reinitializeAction = true) => actionStack.PushAction(action, reinitializeAction);
         public void Pop() => actionStack.Pop();
         public void Pop(TActionBase action) => actionStack.Pop(action);
+        public void Clear() => actionStack.Clear();
     }
 }

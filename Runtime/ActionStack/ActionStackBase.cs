@@ -16,6 +16,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         void PushAction(T action, bool reinitializeAction = true);
         void Pop();
         void Pop(T action);
+        void Clear();
     }
 
     public class ActionStack<TActionBase> : IActionStack
@@ -208,7 +209,7 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
             OnActionPopped?.Invoke(action);
         }
 
-        public void ClearStack()
+        public void Clear()
         {
             var copy = stack.ToArray();
 

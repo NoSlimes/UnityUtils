@@ -16,11 +16,12 @@ namespace NoSlimes.UnityUtils.Runtime.ActionStacks
         private void LateUpdate() => actionStack.LateUpdate();
         private void OnDestroy()
         {
-            actionStack.ClearStack();
+            actionStack.Clear();
         }
 
         public void PushAction(IAction action, bool reinitializeAction = true) => actionStack.PushAction(action, reinitializeAction);
         public void Pop(IAction action) => actionStack.Pop(action);
         public void Pop() => actionStack.Pop();
+        public void Clear() => actionStack.Clear();
     }
 }
