@@ -1,68 +1,69 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
+using Object = UnityEngine.Object;
 
 namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 {
     public class ScriptCounterWindow : EditorWindow
     {
-        private struct ScriptInfo
+        private struct TypeInfo
         {
-            public string Name;
-            public int LineCount;
-            public long SizeBytes;
-            public string Path;
-            public string ScriptType;
-            public int CommentLineCount;
-            public int NonEmptyLineCount;
+            public string TypeName;
+            public string Category;
+            public string FileName;
+            public string FullPath;
+            public int FileLineCount;
+            public long FileSizeBytes;
+            public int FileCommentLines;
+            public int FileNonEmptyLines;
             public bool HasUpdateMethod;
         }
 
-        private enum SortOption { Name, Type, Lines, Size, CommentRatio }
+        private enum SortOption { Name, Type, File, Lines, Size, CommentRatio }
         private SortOption currentSort = SortOption.Lines;
         private bool sortAscending = false;
 
-        private List<ScriptInfo> scriptList = new();
+        private List<TypeInfo> typeList = new List<TypeInfo>();
+
+        private static readonly Regex UpdateRegex = new Regex(@"\b(void|override)\s+(Update|FixedUpdate|LateUpdate)\s*\(", RegexOptions.Compiled);
+        private static readonly Regex TypeDiscoveryRegex = new Regex(@"\b(class|struct|interface|enum)\s+([A-Za-z0-9_<>]+)", RegexOptions.Compiled);
 
         private Button analyzeButton;
-        private Button selectFolderButton;
         private Label folderLabel;
         private ProgressBar progressBar;
         private VisualElement dashboardContainer;
         private ListView scriptListView;
-
-        private Label lblTotalScripts, lblTotalLines, lblTotalSize;
-        private Label lblAvgLines, lblCommentPct, lblMonoPct, lblUpdateCount;
-
+        private Label lblTotalScriptsTypes, lblTotalLines, lblTotalSize, lblAvgLines, lblCommentPct, lblMonoPct, lblUpdateCount;
         private VisualElement typeStatsContainer;
-
         private Button btnBiggest, btnSmallest;
-
-        private Label headerName, headerType, headerLines, headerSize, headerComments;
+        private Label headerName, headerType, headerFile, headerLines, headerSize, headerComments;
 
         private bool isProcessing = false;
         private float currentProgress = 0f;
         private string currentProcessingFile = "";
-
         private string selectedFolder;
 
         [MenuItem("Tools/UnityUtils/Script Analytics")]
         private static void OpenWindow()
         {
-            ScriptCounterWindow window = GetWindow<ScriptCounterWindow>();
-            window.titleContent = new GUIContent("Script Analytics");
-            window.minSize = new Vector2(620, 600);
+            ScriptCounterWindow window = GetWindow<ScriptCounterWindow>("Script Analytics");
+            window.minSize = new Vector2(720, 600);
             window.Show();
         }
 
         public void CreateGUI()
         {
             if (string.IsNullOrEmpty(selectedFolder))
+            {
                 TryFindScriptsFolder();
+            }
 
             VisualElement root = rootVisualElement;
             root.style.paddingTop = 10;
@@ -70,25 +71,25 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             root.style.paddingLeft = 10;
             root.style.paddingRight = 10;
 
-            var title = new Label("Project Script Analytics");
+            Label title = new Label("Project Script Analytics");
             title.style.fontSize = 16;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.alignSelf = Align.Center;
             title.style.marginBottom = 10;
             root.Add(title);
 
-            var folderRow = new VisualElement();
+            VisualElement folderRow = new VisualElement();
             folderRow.style.flexDirection = FlexDirection.Row;
             folderRow.style.marginBottom = 5;
 
-            selectFolderButton = new Button(SelectFolder) { text = "Select Folder" };
-            selectFolderButton.style.height = 25;
+            Button selectBtn = new Button(SelectFolder) { text = "Select Folder" };
+            selectBtn.style.height = 25;
+            folderRow.Add(selectBtn);
 
-            folderLabel = new Label(string.IsNullOrEmpty(selectedFolder) ? "Assets" : selectedFolder); folderLabel.style.flexGrow = 1;
+            folderLabel = new Label(selectedFolder);
+            folderLabel.style.flexGrow = 1;
             folderLabel.style.unityTextAlign = TextAnchor.MiddleLeft;
             folderLabel.style.marginLeft = 6;
-
-            folderRow.Add(selectFolderButton);
             folderRow.Add(folderLabel);
             root.Add(folderRow);
 
@@ -111,17 +112,15 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             dashboardContainer.style.paddingRight = 10;
             dashboardContainer.style.borderTopLeftRadius = 5;
             dashboardContainer.style.borderTopRightRadius = 5;
-            dashboardContainer.style.borderBottomLeftRadius = 5;
-            dashboardContainer.style.borderBottomRightRadius = 5;
 
             VisualElement row1 = CreateRow();
-            lblTotalScripts = CreateStatBox(row1, "Total Scripts");
+            lblTotalScriptsTypes = CreateStatBox(row1, "Scripts / Types");
             lblTotalLines = CreateStatBox(row1, "Total Lines");
             lblTotalSize = CreateStatBox(row1, "Total Size");
             dashboardContainer.Add(row1);
 
             VisualElement row2 = CreateRow();
-            lblAvgLines = CreateStatBox(row2, "Avg Lines");
+            lblAvgLines = CreateStatBox(row2, "Avg File Lines");
             lblCommentPct = CreateStatBox(row2, "Comments %");
             lblMonoPct = CreateStatBox(row2, "MonoBehaviour %");
             lblUpdateCount = CreateStatBox(row2, "Scripts w/ Update");
@@ -147,28 +146,27 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             row3.Add(btnBiggest);
             row3.Add(btnSmallest);
             dashboardContainer.Add(row3);
-
             root.Add(dashboardContainer);
 
-            var listHeader = new VisualElement();
+            VisualElement listHeader = new VisualElement();
             listHeader.style.flexDirection = FlexDirection.Row;
             listHeader.style.marginTop = 15;
-            listHeader.style.paddingLeft = 5;
-            listHeader.style.paddingRight = 5;
             listHeader.style.backgroundColor = new Color(0.15f, 0.15f, 0.15f);
             listHeader.style.height = 20;
             listHeader.style.alignItems = Align.Center;
 
-            headerName = CreateHeaderLabel("Name", 210, SortOption.Name);
-            headerType = CreateHeaderLabel("Type", 160, SortOption.Type);
+            headerName = CreateHeaderLabel("Type Name", 180, SortOption.Name);
+            headerType = CreateHeaderLabel("Category", 130, SortOption.Type);
+            headerFile = CreateHeaderLabel("Defined In", 180, SortOption.File);
+            headerFile.style.marginLeft = 20;
+
             headerLines = CreateHeaderLabel("Lines", 55, SortOption.Lines);
             headerSize = CreateHeaderLabel("Size", 55, SortOption.Size);
             headerComments = CreateHeaderLabel("Comm. %", 70, SortOption.CommentRatio);
 
-            headerComments.style.marginLeft = 10;
-
             listHeader.Add(headerName);
             listHeader.Add(headerType);
+            listHeader.Add(headerFile);
             listHeader.Add(headerLines);
             listHeader.Add(headerSize);
             listHeader.Add(headerComments);
@@ -181,10 +179,12 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             scriptListView.makeItem = MakeListItem;
             scriptListView.bindItem = BindListItem;
             scriptListView.selectionType = SelectionType.Single;
-            scriptListView.selectionChanged += OnSelectionChanged;
-            root.Add(scriptListView);
 
-            UpdateHeaderVisuals();
+            // Events
+            scriptListView.selectionChanged += OnSelectionChanged; // Ping on single click
+            scriptListView.itemsChosen += OnItemsChosen;           // Open on double click/enter
+
+            root.Add(scriptListView);
 
             root.schedule.Execute(() =>
             {
@@ -196,132 +196,220 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             }).Every(50);
         }
 
-        private void TryFindScriptsFolder()
+        private async void CountScriptsAsync()
         {
-            var dirs = Directory.GetDirectories(Application.dataPath, "Scripts", SearchOption.AllDirectories);
-            if (dirs.Length > 0)
+            isProcessing = true;
+            analyzeButton.SetEnabled(false);
+            progressBar.style.display = DisplayStyle.None; // Display later during processing
+            dashboardContainer.style.display = DisplayStyle.None;
+
+            typeList.Clear();
+
+            string[] scriptGUIDs = AssetDatabase.FindAssets("t:MonoScript", new[] { selectedFolder });
+            List<string> filePaths = scriptGUIDs.Select(AssetDatabase.GUIDToAssetPath).Where(p => p.EndsWith(".cs")).Distinct().ToList();
+
+            progressBar.style.display = DisplayStyle.Flex;
+
+            var allAssemblyTypes = new Dictionary<string, Type>();
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic && (a.GetName().Name.Contains("Assembly-CSharp") || a.GetName().Name.Contains("NoSlimes")));
+
+            foreach (var assembly in assemblies)
             {
-                selectedFolder = "Assets" + dirs[0].Replace(Application.dataPath, "").Replace("\\", "/");
+                Type[] types;
+                try { types = assembly.GetTypes(); } catch { continue; }
+                foreach (Type t in types)
+                {
+                    if (t.Name.StartsWith("<") || t.Name.Contains("$") || t.Name.Contains("__")) continue;
+                    if (!allAssemblyTypes.ContainsKey(t.Name)) allAssemblyTypes.Add(t.Name, t);
+                }
             }
+
+            typeList = await Task.Run(() =>
+            {
+                var results = new List<TypeInfo>();
+                for (int i = 0; i < filePaths.Count; i++)
+                {
+                    string path = filePaths[i];
+                    currentProgress = (float)i / filePaths.Count;
+                    currentProcessingFile = Path.GetFileName(path);
+
+                    int lines = 0, commentLines = 0, nonEmptyLines = 0;
+                    bool hasUpdate = false;
+                    string content;
+                    try { content = File.ReadAllText(path); } catch { continue; }
+
+                    using (StringReader reader = new StringReader(content))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            lines++;
+                            if (!string.IsNullOrWhiteSpace(line))
+                            {
+                                nonEmptyLines++;
+                                string trimmed = line.TrimStart();
+                                if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) commentLines++;
+                            }
+                            if (UpdateRegex.IsMatch(line)) hasUpdate = true;
+                        }
+                    }
+
+                    MatchCollection matches = TypeDiscoveryRegex.Matches(content);
+                    if (matches.Count == 0)
+                    {
+                        results.Add(CreateEntry("Unknown", "Generic/Other", path, lines, commentLines, nonEmptyLines, false));
+                    }
+                    else
+                    {
+                        foreach (Match m in matches)
+                        {
+                            string keyword = m.Groups[1].Value;
+                            string name = m.Groups[2].Value;
+                            if (name.Contains("<")) name = name.Split('<')[0];
+
+                            string category = char.ToUpper(keyword[0]) + keyword.Substring(1);
+
+                            if (allAssemblyTypes.TryGetValue(name, out Type type))
+                            {
+                                if (type.IsInterface) category = "Interface";
+                                else if (type.IsEnum) category = "Enum";
+                                else if (type.IsValueType && !type.IsPrimitive) category = "Struct";
+                                else if (typeof(MonoBehaviour).IsAssignableFrom(type)) category = "MonoBehaviour";
+                                else if (typeof(ScriptableObject).IsAssignableFrom(type)) category = "ScriptableObject";
+                                else if (typeof(UnityEditor.Editor).IsAssignableFrom(type)) category = "Editor";
+
+                                if (!type.IsInterface && !type.IsEnum)
+                                {
+                                    if (type.IsAbstract && type.IsSealed) category = "Static " + category;
+                                    else if (type.IsAbstract) category = "Abstract " + category;
+                                }
+                            }
+                            results.Add(CreateEntry(name, category, path, lines, commentLines, nonEmptyLines, hasUpdate));
+                        }
+                    }
+                }
+                return results;
+            });
+
+            ApplySort();
+            UpdateDashboard();
+
+            isProcessing = false;
+            analyzeButton.SetEnabled(true);
+            progressBar.style.display = DisplayStyle.None;
+            dashboardContainer.style.display = DisplayStyle.Flex;
         }
 
-        private void SelectFolder()
+        private TypeInfo CreateEntry(string name, string cat, string path, int lines, int comm, int nonEmp, bool update)
         {
-            string path = EditorUtility.OpenFolderPanel("Select Script Folder", Application.dataPath, "");
-            if (string.IsNullOrEmpty(path)) return;
-            if (!path.StartsWith(Application.dataPath)) return;
-            selectedFolder = "Assets" + path.Replace(Application.dataPath, "").Replace("\\", "/");
-            folderLabel.text = selectedFolder;
+            return new TypeInfo
+            {
+                TypeName = name,
+                Category = cat,
+                FileName = Path.GetFileName(path),
+                FullPath = path,
+                FileLineCount = lines,
+                FileSizeBytes = new FileInfo(path).Length,
+                FileCommentLines = comm,
+                FileNonEmptyLines = nonEmp,
+                HasUpdateMethod = update
+            };
         }
 
-        private VisualElement MakeListItem()
+        private void UpdateDashboard()
         {
-            var container = new VisualElement();
-            container.style.flexDirection = FlexDirection.Row;
-            container.style.alignItems = Align.Center;
-            container.style.paddingLeft = 5;
+            List<TypeInfo> uniqueFiles = typeList.GroupBy(t => t.FullPath).Select(g => g.First()).ToList();
+            long totalLines = uniqueFiles.Sum(x => x.FileLineCount);
+            int totalFiles = uniqueFiles.Count;
 
-            var lblName = new Label();
-            lblName.style.width = 210;
-            lblName.style.overflow = Overflow.Hidden;
+            lblTotalScriptsTypes.text = $"{totalFiles} / {typeList.Count}";
+            lblTotalLines.text = totalLines.ToString("N0");
+            lblTotalSize.text = FormatBytes(uniqueFiles.Sum(x => x.FileSizeBytes));
+            lblAvgLines.text = (totalFiles > 0 ? (float)totalLines / totalFiles : 0).ToString("F1");
 
-            var lblType = new Label();
-            lblType.style.width = 160;
-            lblType.style.overflow = Overflow.Hidden;
-            lblType.style.unityFontStyleAndWeight = FontStyle.Bold;
+            long totalComments = uniqueFiles.Sum(x => x.FileCommentLines);
+            long totalNonEmpty = uniqueFiles.Sum(x => x.FileNonEmptyLines);
+            lblCommentPct.text = $"{(totalNonEmpty > 0 ? (double)totalComments / totalNonEmpty * 100 : 0):F1}%";
 
-            var lblLines = new Label();
-            lblLines.style.width = 55;
+            int totalMonos = typeList.Count(x => x.Category.Contains("MonoBehaviour"));
+            int totalUpdates = typeList.Count(x => x.HasUpdateMethod);
+            lblMonoPct.text = $"{(typeList.Count > 0 ? (float)totalMonos / typeList.Count * 100 : 0):F0}%";
+            lblUpdateCount.text = $"{totalUpdates} ({(totalMonos > 0 ? (float)totalUpdates / totalMonos * 100 : 0):F0}%)";
 
-            var lblSize = new Label();
-            lblSize.style.width = 55;
+            typeStatsContainer.Clear();
+            var typeCounts = typeList.GroupBy(t => t.Category.Replace("Abstract ", "").Replace("Static ", ""))
+                .Select(g => new { Type = g.Key, Count = g.Count() }).OrderByDescending(g => g.Count);
 
-            var lblComm = new Label();
-            lblComm.style.width = 70;
-            lblComm.style.marginLeft = 10;
+            foreach (var g in typeCounts)
+            {
+                Label lbl = CreateStatBox(typeStatsContainer, g.Type);
+                lbl.text = $"{g.Count}";
+                lbl.parent.style.minWidth = 80;
+            }
 
-            container.Add(lblName);
-            container.Add(lblType);
-            container.Add(lblLines);
-            container.Add(lblSize);
-            container.Add(lblComm);
-
-            return container;
+            if (uniqueFiles.Count > 0)
+            {
+                List<TypeInfo> sorted = uniqueFiles.OrderByDescending(x => x.FileLineCount).ToList();
+                btnBiggest.text = $"↑ Most lines: {sorted[0].FileName} ({sorted[0].FileLineCount:N0})";
+                btnBiggest.userData = sorted[0].FullPath;
+                btnSmallest.text = $"↓ Fewest lines: {sorted[^1].FileName} ({sorted[^1].FileLineCount:N0})";
+                btnSmallest.userData = sorted[^1].FullPath;
+            }
         }
 
         private void BindListItem(VisualElement element, int index)
         {
-            if (index >= scriptList.Count) return;
+            TypeInfo info = typeList[index];
+            List<Label> labels = element.Children().Cast<Label>().ToList();
 
-            ScriptInfo info = scriptList[index];
+            labels[0].text = info.TypeName;
+            labels[1].text = info.Category;
+            labels[2].text = info.FileName;
+            labels[3].text = info.FileLineCount.ToString("N0");
+            labels[4].text = FormatBytes(info.FileSizeBytes);
+            labels[5].text = $"{(info.FileNonEmptyLines > 0 ? (float)info.FileCommentLines / info.FileNonEmptyLines : 0):P0}";
 
-            var lblName = element.ElementAt(0) as Label;
-            var lblType = element.ElementAt(1) as Label;
-            var lblLines = element.ElementAt(2) as Label;
-            var lblSize = element.ElementAt(3) as Label;
-            var lblComm = element.ElementAt(4) as Label;
+            labels[1].style.color = GetTypeColor(info.Category);
+            labels[2].style.color = Color.gray;
 
-            lblName.text = info.Name;
-            lblType.text = info.ScriptType;
-            lblLines.text = info.LineCount.ToString("N0");
-            lblSize.text = FormatBytes(info.SizeBytes);
-
-            float ratio = info.NonEmptyLineCount > 0 ? (float)info.CommentLineCount / info.NonEmptyLineCount : 0f;
-            lblComm.text = $"{ratio:P0}";
-
-            Color typeColor = Color.gray;
-            string t = info.ScriptType;
-
-            if (t.Contains("MonoBehaviour"))
-            {
-                typeColor = new Color(0.4f, 1f, 0.4f); // Green
-            }
-            else if (t.Contains("ScriptableObject"))
-            {
-                typeColor = new Color(0.4f, 0.8f, 1f); // Cyan
-            }
-            else if (t.Contains("Interface"))
-            {
-                typeColor = new Color(1f, 0.9f, 0.4f); // Yellowish
-            }
-            else if (t.Contains("Enum"))
-            {
-                typeColor = new Color(1f, 0.6f, 0.2f); // Orange
-            }
-            else if (t.Contains("Editor") || t.Contains("EditorWindow"))
-            {
-                typeColor = new Color(1f, 0.5f, 0.6f); // Red/Pink
-            }
-            else if (t.Contains("Struct"))
-            {
-                typeColor = new Color(0.8f, 0.5f, 1f); // Purple
-            }
-            else if (t.Contains("Class"))
-            {
-                typeColor = new Color(0.7f, 0.7f, 1f); // Blueish
-            }
-
-            lblType.style.color = typeColor;
-
-            Color c = info.LineCount > 1000 ? new Color(1f, 0.4f, 0.4f) :
-                      info.LineCount > 500 ? new Color(1f, 0.7f, 0.2f) :
-                      Color.white;
-
-            lblName.style.color = c;
-            lblLines.style.color = c;
-            lblSize.style.color = Color.gray;
-            lblComm.style.color = Color.gray;
+            Color lineCol = info.FileLineCount > 1000 ? new Color(1f, 0.4f, 0.4f) : info.FileLineCount > 500 ? new Color(1f, 0.7f, 0.2f) : Color.white;
+            labels[0].style.color = labels[3].style.color = lineCol;
         }
 
-        private void OnSelectionChanged(IEnumerable<object> selectedItems)
+        private Color GetTypeColor(string t)
         {
-            if (selectedItems.FirstOrDefault() is ScriptInfo info)
-                PingScript(info.Path);
+            if (t.Contains("MonoBehaviour"))
+            {
+                return new Color(0.4f, 1f, 0.4f);
+            }
+            if (t.Contains("ScriptableObject"))
+            {
+                return new Color(0.4f, 0.8f, 1f);
+            }
+            if (t.Contains("Interface"))
+            {
+                return new Color(1f, 0.9f, 0.4f);
+            }
+            if (t.Contains("Static"))
+            {
+                return new Color(0.7f, 1f, 1f);
+            }
+            if (t.Contains("Enum"))
+            {
+                return new Color(1f, 0.6f, 0.2f);
+            }
+            if (t.Contains("Struct"))
+            {
+                return new Color(0.8f, 0.5f, 1f);
+            }
+
+            return new Color(0.7f, 0.7f, 1f);
         }
 
         private VisualElement CreateRow()
         {
-            var row = new VisualElement();
+            VisualElement row = new VisualElement();
             row.style.flexDirection = FlexDirection.Row;
             row.style.justifyContent = Justify.SpaceBetween;
             return row;
@@ -329,32 +417,48 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
         private Label CreateStatBox(VisualElement parent, string title)
         {
-            var container = new VisualElement();
-            container.style.flexGrow = 1;
-            container.style.alignItems = Align.Center;
+            VisualElement c = new VisualElement();
+            c.style.flexGrow = 1;
+            c.style.alignItems = Align.Center;
 
-            var t = new Label(title);
+            Label t = new Label(title);
             t.style.fontSize = 10;
             t.style.color = Color.gray;
+            c.Add(t);
 
-            var v = new Label("-");
+            Label v = new Label("-");
             v.style.fontSize = 18;
             v.style.unityFontStyleAndWeight = FontStyle.Bold;
+            c.Add(v);
 
-            container.Add(t);
-            container.Add(v);
-            parent.Add(container);
-
+            parent.Add(c);
             return v;
         }
 
         private Label CreateHeaderLabel(string text, float width, SortOption option)
         {
-            var l = new Label(text);
+            Label l = new Label(text);
             l.style.width = width;
             l.style.unityFontStyleAndWeight = FontStyle.Bold;
-            l.RegisterCallback<MouseDownEvent>(evt => OnHeaderClicked(option));
+            l.RegisterCallback<MouseDownEvent>(e => OnHeaderClicked(option));
             return l;
+        }
+
+        private VisualElement MakeListItem()
+        {
+            VisualElement c = new VisualElement();
+            c.style.flexDirection = FlexDirection.Row;
+            c.style.alignItems = Align.Center;
+            c.style.paddingLeft = 5;
+
+            c.Add(new Label { style = { width = 180, overflow = Overflow.Hidden } }); // Type Name
+            c.Add(new Label { style = { width = 130, overflow = Overflow.Hidden, unityFontStyleAndWeight = FontStyle.Bold } }); // Category
+            c.Add(new Label { style = { width = 180, overflow = Overflow.Hidden, marginLeft = 20 } }); // File 
+            c.Add(new Label { style = { width = 55 } }); // Lines
+            c.Add(new Label { style = { width = 55 } }); // Size
+            c.Add(new Label { style = { width = 70, marginLeft = 10 } }); // Comm %
+
+            return c;
         }
 
         private void OnHeaderClicked(SortOption option)
@@ -366,9 +470,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             else
             {
                 currentSort = option;
-                // Default defaults: Text = Ascending, Numbers = Descending
-                if (option == SortOption.Name || option == SortOption.Type) sortAscending = true;
-                else sortAscending = false;
+                sortAscending = (option == SortOption.Name || option == SortOption.Type || option == SortOption.File);
             }
 
             ApplySort();
@@ -377,260 +479,109 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
         private void ApplySort()
         {
-            if (scriptList == null || scriptList.Count == 0) return;
-
-            IEnumerable<ScriptInfo> query = scriptList;
-
+            if (typeList == null || typeList.Count == 0) return;
+            IEnumerable<TypeInfo> q = typeList;
             switch (currentSort)
             {
-                case SortOption.Name:
-                    query = sortAscending ? query.OrderBy(x => x.Name) : query.OrderByDescending(x => x.Name);
-                    break;
-                case SortOption.Type:
-                    query = sortAscending ? query.OrderBy(x => x.ScriptType) : query.OrderByDescending(x => x.ScriptType);
-                    break;
-                case SortOption.Lines:
-                    query = sortAscending ? query.OrderBy(x => x.LineCount) : query.OrderByDescending(x => x.LineCount);
-                    break;
-                case SortOption.Size:
-                    query = sortAscending ? query.OrderBy(x => x.SizeBytes) : query.OrderByDescending(x => x.SizeBytes);
-                    break;
-                case SortOption.CommentRatio:
-                    query = sortAscending
-                        ? query.OrderBy(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0)
-                        : query.OrderByDescending(x => x.NonEmptyLineCount > 0 ? (double)x.CommentLineCount / x.NonEmptyLineCount : 0);
-                    break;
+                case SortOption.Name: q = sortAscending ? q.OrderBy(x => x.TypeName) : q.OrderByDescending(x => x.TypeName); break;
+                case SortOption.Type: q = sortAscending ? q.OrderBy(x => x.Category) : q.OrderByDescending(x => x.Category); break;
+                case SortOption.File: q = sortAscending ? q.OrderBy(x => x.FileName) : q.OrderByDescending(x => x.FileName); break;
+                case SortOption.Lines: q = sortAscending ? q.OrderBy(x => x.FileLineCount) : q.OrderByDescending(x => x.FileLineCount); break;
+                case SortOption.Size: q = sortAscending ? q.OrderBy(x => x.FileSizeBytes) : q.OrderByDescending(x => x.FileSizeBytes); break;
+                case SortOption.CommentRatio: q = sortAscending ? q.OrderBy(x => (float)x.FileCommentLines / Math.Max(1, x.FileNonEmptyLines)) : q.OrderByDescending(x => (float)x.FileCommentLines / Math.Max(1, x.FileNonEmptyLines)); break;
             }
-
-            scriptList = query.ToList();
-            scriptListView.itemsSource = scriptList;
+            typeList = q.ToList();
+            scriptListView.itemsSource = typeList;
             scriptListView.Rebuild();
         }
 
         private void UpdateHeaderVisuals()
         {
-            if (headerName != null) headerName.text = "Name";
-            if (headerType != null) headerType.text = "Type";
-            if (headerLines != null) headerLines.text = "Lines";
-            if (headerSize != null) headerSize.text = "Size";
-            if (headerComments != null) headerComments.text = "Comm. %";
+            headerName.text = "Type Name";
+            headerType.text = "Category";
+            headerFile.text = "Defined In";
+            headerLines.text = "Lines";
+            headerSize.text = "Size";
+            headerComments.text = "Comm. %";
 
             string arrow = sortAscending ? " ↑" : " ↓";
-
             switch (currentSort)
             {
                 case SortOption.Name: headerName.text += arrow; break;
                 case SortOption.Type: headerType.text += arrow; break;
+                case SortOption.File: headerFile.text += arrow; break;
                 case SortOption.Lines: headerLines.text += arrow; break;
                 case SortOption.Size: headerSize.text += arrow; break;
                 case SortOption.CommentRatio: headerComments.text += arrow; break;
             }
         }
 
-        private async void CountScriptsAsync()
+        private void TryFindScriptsFolder()
         {
-            isProcessing = true;
-            analyzeButton.SetEnabled(false);
-            progressBar.style.display = DisplayStyle.Flex;
-            dashboardContainer.style.display = DisplayStyle.None;
-
-            scriptList.Clear();
-            scriptListView.itemsSource = scriptList;
-            scriptListView.Rebuild();
-
-            string[] scriptGUIDs = AssetDatabase.FindAssets("t:MonoScript", new[] { selectedFolder });
-            List<string> filePaths = scriptGUIDs
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .Where(p => p.EndsWith(".cs"))
-                .ToList();
-
-            Dictionary<string, string> fileTypeMap = new Dictionary<string, string>();
-
-            for (int i = 0; i < filePaths.Count; i++)
+            var dirs = Directory.GetDirectories(Application.dataPath, "_Game", SearchOption.AllDirectories);
+            if (dirs.Length > 0)
             {
-                string path = filePaths[i];
-                string typeName = "Unknown";
-
-                var monoScript = AssetDatabase.LoadAssetAtPath<MonoScript>(path);
-                if (monoScript != null)
-                {
-                    System.Type cls = monoScript.GetClass();
-                    if (cls != null)
-                    {
-                        if (cls.IsEnum) typeName = "Enum";
-                        else if (cls.IsInterface) typeName = "Interface";
-                        else if (cls.IsValueType && !cls.IsPrimitive) typeName = "Struct";
-                        else
-                        {
-                            string baseType = "C# Class";
-
-                            if (typeof(MonoBehaviour).IsAssignableFrom(cls)) baseType = "MonoBehaviour";
-                            else if (typeof(ScriptableObject).IsAssignableFrom(cls)) baseType = "ScriptableObject";
-                            else if (typeof(UnityEditor.Editor).IsAssignableFrom(cls)) baseType = "Editor";
-                            else if (typeof(EditorWindow).IsAssignableFrom(cls)) baseType = "EditorWindow";
-
-                            if (cls.IsAbstract)
-                            {
-                                typeName = "Abstract " + baseType;
-                            }
-                            else
-                            {
-                                typeName = baseType;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        typeName = "Unknown/Generic";
-                    }
-                }
-                fileTypeMap[path] = typeName;
+                selectedFolder = "Assets" + dirs[0].Replace(Application.dataPath, "").Replace("\\", "/");
             }
-
-            List<ScriptInfo> resultData = await Task.Run(() =>
+            else
             {
-                var results = new List<ScriptInfo>();
-                int count = filePaths.Count;
+                selectedFolder = "Assets";
+            }
+        }
 
-                for (int i = 0; i < count; i++)
-                {
-                    string path = filePaths[i];
-                    currentProgress = (float)i / count;
-                    currentProcessingFile = Path.GetFileName(path);
-
-                    if (!File.Exists(path)) continue;
-
-                    int lines = 0;
-                    int commentLines = 0;
-                    int nonEmptyLines = 0;
-                    bool hasUpdate = false;
-
-                    foreach (string line in File.ReadLines(path))
-                    {
-                        lines++;
-
-                        if (!string.IsNullOrWhiteSpace(line))
-                        {
-                            nonEmptyLines++;
-                            string trimmed = line.TrimStart();
-                            if (trimmed.StartsWith("//") || trimmed.StartsWith("/*"))
-                                commentLines++;
-                        }
-
-                        if (line.Contains("void Update()") || line.Contains("void FixedUpdate()") || line.Contains("void LateUpdate()"))
-                            hasUpdate = true;
-                    }
-
-                    long size = new FileInfo(path).Length;
-
-                    string typeStr = fileTypeMap.ContainsKey(path) ? fileTypeMap[path] : "Unknown";
-
-                    results.Add(new ScriptInfo
-                    {
-                        Name = Path.GetFileName(path),
-                        LineCount = lines,
-                        SizeBytes = size,
-                        Path = path,
-                        ScriptType = typeStr,
-                        CommentLineCount = commentLines,
-                        NonEmptyLineCount = nonEmptyLines, 
-                        HasUpdateMethod = hasUpdate
-                    });
-                }
-                return results;
-            });
-
-            scriptList = resultData;
-            ApplySort();
-            UpdateHeaderVisuals();
-
-            long totalLines = scriptList.Sum(x => x.LineCount);
-            long totalSize = scriptList.Sum(x => x.SizeBytes);
-            int totalScripts = scriptList.Count;
-
-            long totalComments = scriptList.Sum(x => x.CommentLineCount);
-            long totalNonEmptyLines = scriptList.Sum(x => x.NonEmptyLineCount);
-            int totalUpdateScripts = scriptList.Count(x => x.HasUpdateMethod);
-            
-            int totalMonos = scriptList.Count(x => x.ScriptType.Contains("MonoBehaviour"));
-            float monoPct = totalScripts > 0 ? (float)totalMonos / totalScripts : 0f;
-            float updateRatio = totalMonos > 0 ? (float)totalUpdateScripts / totalMonos : 0f;
-
-            lblTotalScripts.text = totalScripts.ToString("N0");
-            lblTotalLines.text = totalLines.ToString("N0");
-            lblTotalSize.text = FormatBytes(totalSize);
-
-            lblAvgLines.text = (totalScripts > 0 ? (float)totalLines / totalScripts : 0).ToString("F1");
-
-            double commentPct = totalNonEmptyLines > 0 ? (double)totalComments / totalNonEmptyLines * 100.0 : 0;
-            lblCommentPct.text = $"{commentPct:F1}%";
-
-            lblMonoPct.text = $"{monoPct * 100f:F0}%";
-            lblUpdateCount.text = $"{totalUpdateScripts:N0} ({updateRatio * 100f:F0}%)";
-
-            if (updateRatio > 0.5f) lblUpdateCount.style.color = new Color(1f, 0.4f, 0.4f);
-            else if (updateRatio > 0.2f) lblUpdateCount.style.color = new Color(1f, 0.8f, 0.2f);
-            else lblUpdateCount.style.color = new Color(0.4f, 1f, 0.4f);
-
-            typeStatsContainer.Clear();
-            if (scriptList.Count > 0)
+        private void SelectFolder()
+        {
+            string path = EditorUtility.OpenFolderPanel("Select Script Folder", Application.dataPath, "");
+            if (!string.IsNullOrEmpty(path) && path.StartsWith(Application.dataPath))
             {
-                var groups = scriptList
-                    .GroupBy(x => x.ScriptType.Replace("Abstract ", ""))
-                    .Select(g => new { Type = g.Key, Count = g.Count() })
-                    .OrderByDescending(g => g.Count);
+                selectedFolder = "Assets" + path.Replace(Application.dataPath, "").Replace("\\", "/");
+                folderLabel.text = selectedFolder;
+            }
+        }
 
-                foreach (var g in groups)
+        private void OnSelectionChanged(IEnumerable<object> items)
+        {
+            if (items.FirstOrDefault() is TypeInfo info)
+            {
+                PingScript(info.FullPath);
+            }
+        }
+
+        private void OnItemsChosen(IEnumerable<object> items)
+        {
+            if (items.FirstOrDefault() is TypeInfo info)
+            {
+                Object obj = AssetDatabase.LoadAssetAtPath<Object>(info.FullPath);
+                if (obj != null)
                 {
-                    var lbl = CreateStatBox(typeStatsContainer, g.Type);
-                    float typePct = totalScripts > 0 ? (float)g.Count / totalScripts * 100f : 0f;
-                    lbl.text = $"{g.Count:N0} ({typePct:F0}%)";
-                    lbl.parent.style.marginBottom = 5;
-                    lbl.parent.style.marginRight = 10;
-                    lbl.parent.style.minWidth = 80;
+                    AssetDatabase.OpenAsset(obj);
                 }
             }
-
-            if (scriptList.Count > 0)
-            {
-                var sortedByLines = scriptList.OrderByDescending(x => x.LineCount).ToList();
-                var biggest = sortedByLines[0];
-                var smallest = sortedByLines[^1];
-
-                btnBiggest.text = $"↑ Most lines: {biggest.Name} ({biggest.LineCount:N0})";
-                btnBiggest.userData = biggest.Path;
-
-                btnSmallest.text = $"↓ Fewest lines: {smallest.Name} ({smallest.LineCount:N0})";
-                btnSmallest.userData = smallest.Path;
-            }
-
-            scriptListView.itemsSource = scriptList;
-            scriptListView.Rebuild();
-
-            isProcessing = false;
-            analyzeButton.SetEnabled(true);
-            progressBar.style.display = DisplayStyle.None;
-            dashboardContainer.style.display = DisplayStyle.Flex;
         }
 
         private void PingScript(string path)
         {
-            if (string.IsNullOrEmpty(path)) return;
-            var obj = AssetDatabase.LoadAssetAtPath<Object>(path);
-            if (obj != null) EditorGUIUtility.PingObject(obj);
+            if (!string.IsNullOrEmpty(path))
+            {
+                Object obj = AssetDatabase.LoadAssetAtPath<Object>(path);
+                if (obj != null)
+                {
+                    EditorGUIUtility.PingObject(obj);
+                }
+            }
         }
 
-        private string FormatBytes(long bytes)
+        private string FormatBytes(long b)
         {
-            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
-            double len = bytes;
-            int order = 0;
-            while (len >= 1024 && order < sizes.Length - 1)
+            string[] s = { "B", "KB", "MB" };
+            double l = b;
+            int o = 0;
+            while (l >= 1024 && o < s.Length - 1)
             {
-                order++;
-                len /= 1024;
+                o++;
+                l /= 1024;
             }
-            return $"{len:0.##} {sizes[order]}";
+            return $"{l:0.##} {s[o]}";
         }
     }
 }
