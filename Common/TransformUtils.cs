@@ -84,8 +84,8 @@ namespace NoSlimes.UnityUtils.Common
             var renderers = transform.GetComponentsInChildren<Renderer>();
             var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
 
-            if (renderers.Length == 0 && renderers.Length == 0)
-                return new Bounds(Vector3.zero, Vector3.one);
+            if (renderers.Length == 0 && colliders.Length == 0)
+                return new Bounds(transform.position, Vector3.zero);
 
             Bounds combined = new Bounds(transform.position, Vector3.zero);
             bool hasBounds = false;
@@ -145,39 +145,60 @@ namespace NoSlimes.UnityUtils.Common
         }
 
         /// <summary>
-        /// 
+        /// Calculates the local-space bounds of a GameObject relative to this transform, including all child renderers and optionally colliders.
         /// </summary>
-        /// <param name="transform"></param>
-        /// <returns></returns>
+        /// <param name="transform">The Transform of the object.</param>
+        /// <param name="includeColliders">Whether to include colliders in the bounds calculation. Defaults to false.</param>
+        /// <returns>A Bounds struct representing the combined local-space bounds.</returns>
         public static Bounds GetLocalBounds(this Transform transform, bool includeColliders = false)
         {
             var renderers = transform.GetComponentsInChildren<Renderer>();
             var colliders = includeColliders ? transform.GetComponentsInChildren<Collider>() : Array.Empty<Collider>();
 
             if (renderers.Length == 0 && colliders.Length == 0)
-                return new Bounds(Vector3.zero, Vector3.one);
+                return new Bounds(Vector3.zero, Vector3.zero);
 
             Bounds combined = new Bounds();
             bool hasBounds = false;
 
+            void EncapsulateBounds(Bounds childBounds, Transform childTransform, bool isWorldSpaceBounds)
+            {
+                Vector3 center = childBounds.center;
+                Vector3 extents = childBounds.extents;
+
+                Vector3[] corners = new Vector3[8]
+                {
+                    new Vector3(center.x - extents.x, center.y - extents.y, center.z - extents.z),
+                    new Vector3(center.x + extents.x, center.y - extents.y, center.z - extents.z),
+                    new Vector3(center.x - extents.x, center.y + extents.y, center.z - extents.z),
+                    new Vector3(center.x + extents.x, center.y + extents.y, center.z - extents.z),
+                    new Vector3(center.x - extents.x, center.y - extents.y, center.z + extents.z),
+                    new Vector3(center.x + extents.x, center.y - extents.y, center.z + extents.z),
+                    new Vector3(center.x - extents.x, center.y + extents.y, center.z + extents.z),
+                    new Vector3(center.x + extents.x, center.y + extents.y, center.z + extents.z)
+                };
+
+                foreach (var corner in corners)
+                {
+                    Vector3 worldPoint = isWorldSpaceBounds ? corner : childTransform.TransformPoint(corner);
+                    Vector3 localPoint = transform.InverseTransformPoint(worldPoint);
+
+                    if (!hasBounds)
+                    {
+                        combined = new Bounds(localPoint, Vector3.zero);
+                        hasBounds = true;
+                    }
+                    else
+                    {
+                        combined.Encapsulate(localPoint);
+                    }
+                }
+            }
+
             // Include renderers
             foreach (var r in renderers)
             {
-                // Convert renderer's localBounds to this transform's local space
-                Bounds b = new Bounds(
-                    transform.InverseTransformPoint(r.transform.TransformPoint(r.localBounds.center)),
-                    r.localBounds.size
-                );
-
-                if (!hasBounds)
-                {
-                    combined = b;
-                    hasBounds = true;
-                }
-                else
-                {
-                    combined.Encapsulate(b);
-                }
+                EncapsulateBounds(r.localBounds, r.transform, false);
             }
 
             // Include colliders if requested
@@ -185,20 +206,7 @@ namespace NoSlimes.UnityUtils.Common
             {
                 foreach (var c in colliders)
                 {
-                    Bounds b = new Bounds(
-                        transform.InverseTransformPoint(c.bounds.center),
-                        transform.InverseTransformVector(c.bounds.size)
-                    );
-
-                    if (!hasBounds)
-                    {
-                        combined = b;
-                        hasBounds = true;
-                    }
-                    else
-                    {
-                        combined.Encapsulate(b);
-                    }
+                    EncapsulateBounds(c.bounds, c.transform, true);
                 }
             }
 
@@ -207,20 +215,20 @@ namespace NoSlimes.UnityUtils.Common
 
 
         /// <summary>
-        /// 
+        /// Returns the local-space size of the object relative to this transform, including all child renderers.
         /// </summary>
-        /// <param name="transform"></param>
-        /// <returns></returns>
+        /// <param name="transform">The Transform of the object.</param>
+        /// <returns>The local size of the object as a <see cref="Vector3"/>.</returns>
         public static Vector3 GetLocalSize(this Transform transform)
         {
             return GetLocalBounds(transform).size;
         }
 
         /// <summary>
-        /// 
+        /// Returns the local-space center of the object relative to this transform, including all child renderers.
         /// </summary>
-        /// <param name="transform"></param>
-        /// <returns></returns>
+        /// <param name="transform">The Transform of the object.</param>
+        /// <returns>The local center of the object as a <see cref="Vector3"/>.</returns>
         public static Vector3 GetLocalCenter(this Transform transform)
         {
             return GetLocalBounds(transform).center;
