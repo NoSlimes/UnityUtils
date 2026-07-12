@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace NoSlimes.UnityUtils.Editor.Editors
+namespace NoSlimes.UnityUtils.Editor.Editors.ActionStacks
 {
     [CustomEditor(typeof(ActionStack), true)]
     public class ActionStackEditor : UnityEditor.Editor
