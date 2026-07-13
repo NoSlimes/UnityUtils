@@ -34,7 +34,12 @@ namespace NoSlimes.UnityUtils.Editor.Editors.ActionStacks.Netcode.NGO
             base.OnInspectorGUI();
 
             if (PrefabStageUtility.GetCurrentPrefabStage() == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "Actions are only refreshed in the Prefab Stage.",
+                    MessageType.Warning);
                 return;
+            }
 
             if (GUILayout.Button("Refresh Actions"))
             {
