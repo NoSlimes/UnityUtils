@@ -57,28 +57,28 @@ namespace NoSlimes.UnityUtils.Runtime
 
         public T Get()
         {
-            while (free.Count > 0)
+            while (true)
             {
-                var obj = free.Pop();
-                if (!obj) continue;
+                while (free.Count > 0)
+                {
+                    var obj = free.Pop();
+                    if (!obj) continue;
 
-                busy.Add(obj);
-                obj.gameObject.SetActive(true);
-                onGet(obj);
+                    busy.Add(obj);
+                    obj.gameObject.SetActive(true);
+                    onGet(obj);
 
-                if (free.Count <= min)
-                    excessStartTime = -1f;
+                    if (free.Count <= min)
+                        excessStartTime = -1f;
 
-                return obj;
-            }
+                    return obj;
+                }
 
-            if (Count < max)
-            {
+                if (Count >= max)
+                    return null;
+
                 GrowPool(grow);
-                return Get();
             }
-
-            return null;
         }
 
         public void Release(T obj)
