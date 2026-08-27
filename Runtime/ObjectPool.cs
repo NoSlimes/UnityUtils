@@ -7,7 +7,7 @@ namespace NoSlimes.UnityUtils.Runtime
     public class ObjectPool<T> where T : Component
     {
         private readonly Stack<T> free = new();
-        private readonly List<T> busy = new();
+        private readonly HashSet<T> busy = new();
 
         private readonly int min;
         private readonly int max;
@@ -31,14 +31,40 @@ namespace NoSlimes.UnityUtils.Runtime
             Action<T> onRelease,
             Func<T, bool> isAlive)
         {
+            if (min < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(min));
+            }
+
+            if (max < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(max));
+            }
+
+            if (grow <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(grow));
+            }
+
+            if (shrinkDelay < 0f)
+            {
+                throw new ArgumentOutOfRangeException(nameof(shrinkDelay));
+            }
+
+            // Clamp min to max to avoid over-allocating in Prewarm
+            if (min > max)
+            {
+                min = max;
+            }
+
             this.min = min;
             this.max = max;
             this.grow = grow;
             this.shrinkDelay = shrinkDelay;
-            this.factory = factory;
+            this.factory = factory ?? throw new ArgumentNullException(nameof(factory));
             this.onGet = onGet;
             this.onRelease = onRelease;
-            this.isAlive = isAlive;
+            this.isAlive = isAlive ?? throw new ArgumentNullException(nameof(isAlive));
 
             Prewarm(min);
         }
@@ -66,7 +92,7 @@ namespace NoSlimes.UnityUtils.Runtime
 
                     busy.Add(obj);
                     obj.gameObject.SetActive(true);
-                    onGet(obj);
+                    onGet?.Invoke(obj);
 
                     if (free.Count <= min)
                         excessStartTime = -1f;
@@ -84,16 +110,15 @@ namespace NoSlimes.UnityUtils.Runtime
         public void Release(T obj)
         {
             if (!obj) return;
-            int index = busy.IndexOf(obj);
-            if (index < 0) return;
+            if (!busy.Contains(obj)) return;
 
-            busy.RemoveAt(index);
-            onRelease(obj);
+            busy.Remove(obj);
+            onRelease?.Invoke(obj);
             obj.gameObject.SetActive(false);
             free.Push(obj);
 
             if (free.Count > min && excessStartTime < 0f)
-                excessStartTime = Time.time;
+                excessStartTime = Time.unscaledTime;
         }
 
         /// <summary>
@@ -102,16 +127,20 @@ namespace NoSlimes.UnityUtils.Runtime
         /// </summary>
         public void Update()
         {
-            for (int i = busy.Count - 1; i >= 0; i--)
+            // Snapshot to avoid modifying busy while iterating (HashSet)
+            if (busy.Count > 0)
             {
-                var obj = busy[i];
-                if (!obj || !isAlive(obj))
-                    Release(obj);
+                var snapshot = new List<T>(busy);
+                foreach (var obj in snapshot)
+                {
+                    if (!obj || !isAlive(obj))
+                        Release(obj);
+                }
             }
 
             if (free.Count > min && excessStartTime >= 0f)
             {
-                if (Time.time - excessStartTime >= shrinkDelay)
+                if (Time.unscaledTime - excessStartTime >= shrinkDelay)
                 {
                     while (free.Count > min)
                     {
