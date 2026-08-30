@@ -19,5 +19,35 @@ namespace NoSlimes.UnityUtils.Common
         {
             return new Vector3(vector.x, vector.y, newZ);
         }
+
+        public static Vector2 WithX(this Vector2 vector, float newX)
+        {
+            return new Vector2(newX, vector.y);
+        }
+
+        public static Vector2 WithY(this Vector2 vector, float newY)
+        {
+            return new Vector2(vector.x, newY);
+        }
+
+        public static Vector4 WithX(this Vector4 vector, float newX)
+        {
+            return new Vector4(newX, vector.y, vector.z, vector.w);
+        }
+
+        public static Vector4 WithY(this Vector4 vector, float newY)
+        {
+            return new Vector4(vector.x, newY, vector.z, vector.w);
+        }
+
+        public static Vector4 WithZ(this Vector4 vector, float newZ)
+        {
+            return new Vector4(vector.x, vector.y, newZ, vector.w);
+        }
+
+        public static Vector4 WithW(this Vector4 vector, float newW)
+        {
+            return new Vector4(vector.x, vector.y, vector.z, newW);
+        }
     }
 }
