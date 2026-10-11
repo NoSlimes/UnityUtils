@@ -22,13 +22,9 @@ public class TypeSelectorAttributeDrawer : PropertyDrawer
 
         if (!typeCache.TryGetValue(typeAttr.BaseType, out Type[] types))
         {
-            types = AppDomain.CurrentDomain.GetAssemblies()
-                .SelectMany(a =>
-                {
-                    try { return a.GetTypes(); }
-                    catch { return Array.Empty<Type>(); } 
-                })
-                .Where(t => typeAttr.BaseType.IsAssignableFrom(t) && (typeAttr.IncludeAbstract || !t.IsAbstract))
+            types = TypeCache.GetTypesDerivedFrom(typeAttr.BaseType)
+                .Prepend(typeAttr.BaseType)
+                .Where(t => typeAttr.IncludeAbstract || !t.IsAbstract)
                 .OrderBy(t => t.Name)
                 .ToArray();
 

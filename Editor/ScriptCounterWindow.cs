@@ -211,8 +211,12 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             progressBar.style.display = DisplayStyle.Flex;
 
             var allAssemblyTypes = new Dictionary<string, Type>();
+            // Editor-only scan over a filtered assembly set, already guarded per
+            // assembly below. No Unity API enumerates arbitrary loaded assemblies.
+#pragma warning disable UAC0005
             var assemblies = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(a => !a.IsDynamic && (a.GetName().Name.Contains("Assembly-CSharp") || a.GetName().Name.Contains("NoSlimes")));
+#pragma warning restore UAC0005
 
             foreach (var assembly in assemblies)
             {
