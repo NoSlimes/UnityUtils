@@ -34,6 +34,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
 
         private static readonly Regex UpdateRegex = new Regex(@"\b(void|override)\s+(Update|FixedUpdate|LateUpdate)\s*\(", RegexOptions.Compiled);
         private static readonly Regex TypeDiscoveryRegex = new Regex(@"\b(class|struct|interface|enum)\s+([A-Za-z0-9_<>]+)", RegexOptions.Compiled);
+        private static readonly Regex ShaderNameRegex = new Regex(@"Shader\s*""([^""]+)""", RegexOptions.Compiled);
 
         private Button analyzeButton;
         private Label folderLabel;
@@ -71,7 +72,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             root.style.paddingLeft = 10;
             root.style.paddingRight = 10;
 
-            Label title = new Label("Project Script Analytics");
+            Label title = new Label("Project Script & Shader Analytics");
             title.style.fontSize = 16;
             title.style.unityFontStyleAndWeight = FontStyle.Bold;
             title.style.alignSelf = Align.Center;
@@ -93,7 +94,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             folderRow.Add(folderLabel);
             root.Add(folderRow);
 
-            analyzeButton = new Button(CountScriptsAsync) { text = "Analyze Scripts" };
+            analyzeButton = new Button(CountScriptsAsync) { text = "Analyze Scripts & Shaders" };
             analyzeButton.style.height = 30;
             root.Add(analyzeButton);
 
@@ -114,7 +115,7 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             dashboardContainer.style.borderTopRightRadius = 5;
 
             VisualElement row1 = CreateRow();
-            lblTotalScriptsTypes = CreateStatBox(row1, "Scripts / Types");
+            lblTotalScriptsTypes = CreateStatBox(row1, "Files / Types");
             lblTotalLines = CreateStatBox(row1, "Total Lines");
             lblTotalSize = CreateStatBox(row1, "Total Size");
             dashboardContainer.Add(row1);
@@ -208,6 +209,13 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             string[] scriptGUIDs = AssetDatabase.FindAssets("t:MonoScript", new[] { selectedFolder });
             List<string> filePaths = scriptGUIDs.Select(AssetDatabase.GUIDToAssetPath).Where(p => p.EndsWith(".cs")).Distinct().ToList();
 
+            string[] shaderGUIDs = AssetDatabase.FindAssets("t:Shader", new[] { selectedFolder });
+            List<string> shaderPaths = shaderGUIDs.Select(AssetDatabase.GUIDToAssetPath).Where(p => p.EndsWith(".shader")).Distinct().ToList();
+
+            // .hlsl includes import as plain text, so t:Shader never finds them.
+            string[] hlslGUIDs = AssetDatabase.FindAssets("t:TextAsset", new[] { selectedFolder });
+            shaderPaths = shaderPaths.Concat(hlslGUIDs.Select(AssetDatabase.GUIDToAssetPath).Where(p => p.EndsWith(".hlsl"))).Distinct().ToList();
+
             progressBar.style.display = DisplayStyle.Flex;
 
             var allAssemblyTypes = new Dictionary<string, Type>();
@@ -238,26 +246,11 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
                     currentProgress = (float)i / filePaths.Count;
                     currentProcessingFile = Path.GetFileName(path);
 
-                    int lines = 0, commentLines = 0, nonEmptyLines = 0;
-                    bool hasUpdate = false;
                     string content;
                     try { content = File.ReadAllText(path); } catch { continue; }
 
-                    using (StringReader reader = new StringReader(content))
-                    {
-                        string line;
-                        while ((line = reader.ReadLine()) != null)
-                        {
-                            lines++;
-                            if (!string.IsNullOrWhiteSpace(line))
-                            {
-                                nonEmptyLines++;
-                                string trimmed = line.TrimStart();
-                                if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) commentLines++;
-                            }
-                            if (UpdateRegex.IsMatch(line)) hasUpdate = true;
-                        }
-                    }
+                    CountLines(content, out int lines, out int commentLines, out int nonEmptyLines);
+                    bool hasUpdate = UpdateRegex.IsMatch(content);
 
                     MatchCollection matches = TypeDiscoveryRegex.Matches(content);
                     if (matches.Count == 0)
@@ -293,6 +286,26 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
                         }
                     }
                 }
+
+                int totalFiles = filePaths.Count + shaderPaths.Count;
+                for (int i = 0; i < shaderPaths.Count; i++)
+                {
+                    string path = shaderPaths[i];
+                    currentProgress = totalFiles > 0 ? (float)(filePaths.Count + i) / totalFiles : 1f;
+                    currentProcessingFile = Path.GetFileName(path);
+
+                    string content;
+                    try { content = File.ReadAllText(path); } catch { continue; }
+
+                    CountLines(content, out int lines, out int commentLines, out int nonEmptyLines);
+
+                    string name;
+                    string category;
+                    Match sm = ShaderNameRegex.Match(content);
+                    name = sm.Success ? sm.Groups[1].Value : Path.GetFileNameWithoutExtension(path);
+                    category = "Shader";
+                    results.Add(CreateEntry(name, category, path, lines, commentLines, nonEmptyLines, false));
+                }
                 return results;
             });
 
@@ -319,6 +332,28 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
                 FileNonEmptyLines = nonEmp,
                 HasUpdateMethod = update
             };
+        }
+
+        private static void CountLines(string content, out int lines, out int commentLines, out int nonEmptyLines)
+        {
+            // Shared by scripts and shaders: both use // and /* */ comments.
+            lines = 0;
+            commentLines = 0;
+            nonEmptyLines = 0;
+            using (StringReader reader = new StringReader(content))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    lines++;
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        nonEmptyLines++;
+                        string trimmed = line.TrimStart();
+                        if (trimmed.StartsWith("//") || trimmed.StartsWith("/*") || trimmed.StartsWith("*")) commentLines++;
+                    }
+                }
+            }
         }
 
         private void UpdateDashboard()
@@ -406,6 +441,10 @@ namespace NoSlimes.UnityUtils.Editor.EditorWindows.ScriptCounter
             if (t.Contains("Struct"))
             {
                 return new Color(0.8f, 0.5f, 1f);
+            }
+            if (t.Contains("Shader"))
+            {
+                return new Color(1f, 0.5f, 0.85f);
             }
 
             return new Color(0.7f, 0.7f, 1f);

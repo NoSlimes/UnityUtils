@@ -8,6 +8,20 @@ public class InlineInspectorDrawer : PropertyDrawer
 {
     private static Dictionary<string, bool> foldouts = new Dictionary<string, bool>();
 
+    private System.Type GetDrawnObjectType()
+    {
+        System.Type t = null;
+        try { t = fieldInfo?.FieldType; }
+        catch { t = null; }
+        if (t == null)
+            return typeof(UnityEngine.Object);
+        if (t.IsArray)
+            return t.GetElementType() ?? typeof(UnityEngine.Object);
+        if (t.IsGenericType && t.GetGenericArguments().Length == 1)
+            return t.GetGenericArguments()[0];
+        return t;
+    }
+
     public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
     {
         EditorGUI.BeginProperty(position, label, property);
@@ -39,7 +53,7 @@ public class InlineInspectorDrawer : PropertyDrawer
                     // ObjectReference element
                     if (element.propertyType == SerializedPropertyType.ObjectReference)
                     {
-                        element.objectReferenceValue = EditorGUI.ObjectField(elementRect, $"Element {i}", element.objectReferenceValue, typeof(Object), true);
+                        element.objectReferenceValue = EditorGUI.ObjectField(elementRect, $"Element {i}", element.objectReferenceValue, GetDrawnObjectType(), true);
                         y += elementHeight + 2;
 
                         if (element.objectReferenceValue != null)
@@ -86,7 +100,7 @@ public class InlineInspectorDrawer : PropertyDrawer
         // Single ObjectReference
         else if (property.propertyType == SerializedPropertyType.ObjectReference)
         {
-            property.objectReferenceValue = EditorGUI.ObjectField(fieldRect, label, property.objectReferenceValue, typeof(Object), true);
+            property.objectReferenceValue = EditorGUI.ObjectField(fieldRect, label, property.objectReferenceValue, GetDrawnObjectType(), true);
             y += EditorGUIUtility.singleLineHeight + 2;
 
             if (property.objectReferenceValue != null)
